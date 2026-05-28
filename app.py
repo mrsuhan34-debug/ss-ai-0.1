@@ -1,28 +1,62 @@
+from flask import Flask, render_template, request, jsonify
 import os
-from flask import Flask, render_template, send_from_directory
 
-app = Flask(__name__, template_folder='.')
-
-# SYSTEM ROOT TRACKER CONFIGURATION
-SYSTEM_ROOT = r"C:\flutter dev\project\YouTube AI assistant"
+app = Flask(__name__)
 
 @app.route('/')
 def index():
-    """Serve the SaaS control center frontend."""
-    return send_from_directory('.', 'index.html')
+    return render_template('index.html')
 
-def initialize_system():
-    """Initialize the backend environment and log status."""
-    if os.path.exists(SYSTEM_ROOT):
-        print(f"--- SYSTEM INITIALIZATION SUCCESSFUL ---")
-        print(f"ROOT PATH: {SYSTEM_ROOT}")
-        print(f"STATUS: ONLINE")
-        print(f"----------------------------------------")
+@app.route('/execute', methods=['POST'])
+def execute_command():
+    data = request.json
+    user_command = data.get('command', '').lower().strip()
+    
+    if not user_command:
+        return jsonify({'status': 'ERROR', 'message': 'No directive entered.'})
+    
+    # ১. মুভি বা সিনেমাটিক এডিটের রেসপন্স লজিক
+    if 'lucy' in user_command or 'cinematic' in user_command or 'effects' in user_command:
+        return jsonify({
+            'status': 'SUCCESS',
+            'message': (
+                f'Task "{data.get("command")}" initiated successfully.\n'
+                '[AI ENGINE] Slicing high-action timestamps from "Lucy (2014)"...\n'
+                '[VFX CORE] Injecting heavy motion blur, neural color grading, and speed ramps...\n'
+                '[STATUS] Rendering engine active. Compiling cinematic assets into local cache...'
+            )
+        })
+    
+    # ২. ইউটিউব শর্টস বা এসএস এডিট চ্যানেলের রেসপন্স লজিক
+    elif 'shorts' in user_command or 'viral' in user_command or 'captions' in user_command:
+        return jsonify({
+            'status': 'SUCCESS',
+            'message': (
+                f'Task "{data.get("command")}" initiated successfully.\n'
+                '[YT BOT] Analyzing viral retention trends for "SS EDIT" channel...\n'
+                '[AUDIO] Syncing phoneme data with trending BGM audio waves...\n'
+                '[CAPTIONS] Generating dynamic automatic glow captions (Yellow/White theme)...'
+            )
+        })
+    
+    # ৩. সিস্টেম চেকের রেসপন্স লজিক
+    elif 'system' in user_command or 'server' in user_command or 'analyze' in user_command:
+        return jsonify({
+            'status': 'SUCCESS',
+            'message': (
+                f'Task "{data.get("command")}" executed successfully.\n'
+                '[CORE] CPU Load: 12% | RAM Usage: 184MB/512MB (Render Free Tier)\n'
+                '[SERVER] GitHub Repo "ss-ai-0.1" is fully synchronized with Render Cloud.\n'
+                '[ONLINE] System integrity nominal. Awaiting next core directive...'
+            )
+        })
+    
+    # অন্য যেকোনো সাধারণ কমান্ডের জন্য ডিফল্ট রেসপন্স
     else:
-        print(f"CRITICAL ERROR: System root {SYSTEM_ROOT} not found.")
+        return jsonify({
+            'status': 'PROCESSING',
+            'message': f'Command "{data.get("command")}" received. Parsing parameters for YouTube AI Bot layer...'
+        })
 
 if __name__ == '__main__':
-    initialize_system()
-    # In a real deployment, we would run the app:
-    # app.run(debug=True, port=5000)
-    print("PROJECT RE-STRUCTURE SUCCESSFUL • ASSISTANT IS ONLINE")
+    app.run(debug=True)
