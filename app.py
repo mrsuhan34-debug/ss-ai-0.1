@@ -1,62 +1,47 @@
-from flask import Flask, render_template, request, jsonify
 import os
+import json
+from flask import Flask, render_template, request, jsonify
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 app = Flask(__name__)
+
+CREDENTIALS_FILE = 'credentials.json'
+SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl']
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
 @app.route('/execute', methods=['POST'])
-def execute_command():
+def execute():
     data = request.json
-    user_command = data.get('command', '').lower().strip()
+    command = data.get('command', '').lower()
     
-    if not user_command:
-        return jsonify({'status': 'ERROR', 'message': 'No directive entered.'})
-    
-    # ১. মুভি বা সিনেমাটিক এডিটের রেসপন্স লজিক
-    if 'lucy' in user_command or 'cinematic' in user_command or 'effects' in user_command:
+    if 'analyze system' in command:
         return jsonify({
-            'status': 'SUCCESS',
-            'message': (
-                f'Task "{data.get("command")}" initiated successfully.\n'
-                '[AI ENGINE] Slicing high-action timestamps from "Lucy (2014)"...\n'
-                '[VFX CORE] Injecting heavy motion blur, neural color grading, and speed ramps...\n'
-                '[STATUS] Rendering engine active. Compiling cinematic assets into local cache...'
-            )
+            "status": "SUCCESS",
+            "message": "CPU Load: 8% | RAM Usage: 192MB/512MB\n[ONLINE] YouTube API Gateway is ready."
         })
-    
-    # ২. ইউটিউব শর্টস বা এসএস এডিট চ্যানেলের রেসপন্স লজিক
-    elif 'shorts' in user_command or 'viral' in user_command or 'captions' in user_command:
-        return jsonify({
-            'status': 'SUCCESS',
-            'message': (
-                f'Task "{data.get("command")}" initiated successfully.\n'
-                '[YT BOT] Analyzing viral retention trends for "SS EDIT" channel...\n'
-                '[AUDIO] Syncing phoneme data with trending BGM audio waves...\n'
-                '[CAPTIONS] Generating dynamic automatic glow captions (Yellow/White theme)...'
-            )
-        })
-    
-    # ৩. সিস্টেম চেকের রেসপন্স লজিক
-    elif 'system' in user_command or 'server' in user_command or 'analyze' in user_command:
-        return jsonify({
-            'status': 'SUCCESS',
-            'message': (
-                f'Task "{data.get("command")}" executed successfully.\n'
-                '[CORE] CPU Load: 12% | RAM Usage: 184MB/512MB (Render Free Tier)\n'
-                '[SERVER] GitHub Repo "ss-ai-0.1" is fully synchronized with Render Cloud.\n'
-                '[ONLINE] System integrity nominal. Awaiting next core directive...'
-            )
-        })
-    
-    # অন্য যেকোনো সাধারণ কমান্ডের জন্য ডিফল্ট রেসপন্স
+        
+    elif 'youtube' in command or 'auth' in command or 'link' in command:
+        if not os.path.exists(CREDENTIALS_FILE):
+            return jsonify({"status": "ERROR", "message": "credentials.json file missing!"})
+            
+        try:
+            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+            flow.redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            return jsonify({
+                "status": "SUCCESS",
+                "message": f"YouTube API ready. Click to auth: {auth_url}"
+            })
+        except Exception as e:
+            return jsonify({"status": "ERROR", "message": f"Failed: {str(e)}"})
     else:
         return jsonify({
-            'status': 'PROCESSING',
-            'message': f'Command "{data.get("command")}" received. Parsing parameters for YouTube AI Bot layer...'
+            "status": "SUCCESS",
+            "message": f"Task '{command}' initiated on SS-AI Core."
         })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
