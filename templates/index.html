@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube AI Bot - Controller v1.1</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --text-color: #c9d1d9;
+            --accent-blue: #1f6feb;
+            --accent-green: #2ea44f;
+            --accent-error: #f85149;
+            --terminal-green: #39ff14;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .header {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #8b949e;
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--panel-bg);
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 5px;
+        }
+
+        .terminal-box {
+            background-color: #05070a;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 25px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .sys-msg { color: #58a6ff; }
+        .ready-msg { color: var(--terminal-green); }
+        .success-msg { color: #56d364; }
+        .error-msg { color: var(--accent-error); }
+        .cmd-line { color: #ffffff; margin: 5px 0; }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            background-color: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #ffffff;
+            padding: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+        }
+
+        button {
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border: 1px solid rgba(240,246,252,0.1);
+            border-radius: 4px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            font-family: inherit;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #388bfd;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 11px;
+            color: #484f58;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        Controller v1.1
+    </div>
+
+    <div class="main-container">
+        <div class="section-title">Operations Terminal</div>
+        <div class="terminal-box" id="terminal">
+            <div class="sys-msg">[SYSTEM] Initialization complete...</div>
+            <div class="ready-msg">[READY] Awaiting secure command...</div>
+        </div>
+
+        <div class="input-group">
+            <div class="section-title">Secure Command Input</div>
+            <input type="text" id="commandInput" placeholder="Enter system directive..." onkeydown="if(event.key === 'Enter') executeCommand()">
+            <button onclick="executeCommand()">Execute Core Task</button>
+        </div>
+    </div>
+
+    <div class="footer-note">
+        © 2026 YouTube AI Assistant • Secure Infrastructure Layer
+    </div>
+
+    <script>
+        function executeCommand() {
+            const inputField = document.getElementById('commandInput');
+            const command = inputField.value.trim();
+            const terminal = document.getElementById('terminal');
+
+            if (!command) return;
+
+            // স্ক্রিনে প্রম্পটটি দেখানো
+            terminal.innerHTML += `<div class="cmd-line">&gt; ${command}</div>`;
+            inputField.value = '';
+            terminal.scrollTop = terminal.scrollHeight;
+
+            // সার্ভারে রিকোয়েস্ট পাঠানো
+            fetch('/execute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                let msgClass = 'sys-msg';
+                if (data.status === 'SUCCESS') msgClass = 'success-msg';
+                if (data.status === 'ERROR') msgClass = 'error-msg';
+
+                // নতুন লাইনের ব্রেক সামলানোর জন্য
+                const formattedMessage = data.message.replace(/\n/g, '<br>');
+                terminal.innerHTML += `<div class="${msgClass}">[${data.status}] ${formattedMessage}</div>`;
+                terminal.scrollTop = terminal.scrollHeight;
+            })
+            .catch(error => {
+                terminal.innerHTML += `<div class="error-msg">[ERROR] Failed to communicate with core engine.</div>`;
+                terminal.scrollTop = terminal.scrollHeight;
+            });
+        }
+    </script>
+</body>
+</html>
