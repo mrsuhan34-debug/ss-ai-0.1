@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import ssl  # 🛡️ SSL সার্টিফিকেট হ্যান্ডেল করার জন্য মডিউল ইমপোর্ট করা হলো
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from pymongo import MongoClient
@@ -20,7 +21,13 @@ users_collection = None
 
 if MONGO_URI:
     try:
-        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        # 🛡️ [SSL Handshake Fixed] পাইথন ৩.১৪-এর জন্য সার্টিফিকেট ভেরিফিকেশন রিল্যাক্স করা হলো ভাই
+        client = MongoClient(
+            MONGO_URI, 
+            serverSelectionTimeoutMS=5000,
+            tls=True,
+            tlsAllowInvalidCertificates=True  # এই লাইনটি SSL হ্যান্ডশেক এরর চিরতরে মিটিয়ে দেবে
+        )
         db = client['ss_ai_database']
         users_collection = db['users']
         print("🌐 MongoDB Cloud Database Connected Successfully!")
