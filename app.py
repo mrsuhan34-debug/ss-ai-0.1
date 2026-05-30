@@ -18,10 +18,8 @@ MONGO_URI = os.getenv("MONGO_URI")
 
 users_collection = None
 
-# 🛡️ সুহান ভাই, ডাটাবেস কানেকশন লজিকটা একদম ক্র্যাশ-প্রুফ করা হলো যাতে 'Status 1' এরর আর না আসে
 if MONGO_URI:
     try:
-        # ৫ সেকেন্ডের একটা টাইমআউট দেওয়া হলো যাতে সার্ভার আটকে না থাকে
         client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
         db = client['ss_ai_database']
         users_collection = db['users']
