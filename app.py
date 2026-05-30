@@ -14,8 +14,7 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 
 DB_FILE = 'users_db.json'
 
-# 🧠 [সুhan ভাইয়ের স্পেশাল পার্মানেন্ট মেমোরি ব্যাংক]
-# রেন্ডার ক্লিয়ার বিল্ড মারলেও এই গ্লোবাল মেমোরি কাস্টমারদের আইডি ডাটাবেসকে মুছে যাওয়া থেকে বাঁচাবে
+# 🧠 [সুহান ভাইয়ের স্পেশাল পার্মানেন্ট মেমোরি ব্যাংক]
 PERSISTENT_MEMORY = {
     "admin": {
         "user_id": "SS_ELITE_ADMIN_2026",
@@ -69,7 +68,7 @@ def index():
                 session.clear()
                 return "<h1>🛑 Account Blocked By Admin!</h1><a href='/logout'>Go Back</a>"
             
-            # 🎯 কাস্টমারের নিজের পাসওয়ার্ড যাতে ফ্রন্টএন্ডে পাস করা যায়, তার জন্য ভ্যারিয়েবল পাঠানো হলো
+            # 🎯 কাস্টমারের নিজের পাসওয়ার্ড ও আইডি সুন্দরভাবে ফ্রন্টএন্ডে পাস করা হলো
             return render_template(
                 'index.html', 
                 role='customer', 
@@ -98,9 +97,9 @@ def get_live_ai_data():
     random.seed(day_seed)
     
     if "cartoon" in category:
-        topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
+        topics = ["সোনার পাখি ও জাদুকরী রাজা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
         titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! 👺 | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার একদম নতুন পর্ব। \nThumbnail: 🟢 HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। \nThumbnail: 🟢 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে কীভাবে উচিত শিক্ষা দিল টুনটুনি। \nThumbnail: 🟢 AI Frame Rendered"]
+        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার একদম নতুন পর্ব। \nThumbnail: 🟢 HD Auto-Render Complete", "Description: @ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। \nThumbnail: 🟢 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে কীভাবে উচিত শিক্ষা দিল টুনতুনি। \nThumbnail: 🟢 AI Frame Rendered"]
         lengths = ["⏳ 11 Minutes 45 Seconds", "⏳ 09 Minutes 12 Seconds", "⏳ 13 Minutes 20 Seconds"]
         best_time = "⏱️ TODAY AT 04:30 PM (Based on Kids Content Traffic)"
     elif "documentary" in category:
