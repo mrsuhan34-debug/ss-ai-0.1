@@ -13,8 +13,18 @@
         .menu-container { position: absolute; top: 15px; right: 20px; cursor: pointer; z-index: 1000; }
         .three-lines { font-size: 24px; color: #00ffcc; font-weight: bold; user-select: none; }
         .dropdown-menu { position: absolute; top: 35px; right: 0; background: #1f1f2e; border: 1px solid #333; border-radius: 8px; width: 260px; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.5); text-align: left; padding: 10px; box-sizing: border-box; }
-        .dropdown-menu a { color: #fff; text-decoration: none; display: block; padding: 12px; font-weight: bold; border-bottom: 1px solid #2a2a3a; font-size: 13.5px; }
+        .dropdown-menu a { color: #fff; text-decoration: none; display: block; padding: 12px; font-weight: bold; border-bottom: 1px solid #2a2a3a; font-size: 13.5px; cursor: pointer; }
         .dropdown-menu a:hover { background: rgba(0,255,204,0.1); color: #00ffcc; }
+        
+        /* 👥 একই প্যানেলে ভেসে ওঠার লাইভ পপ-আপ ডাটাবেস উইন্ডো (Modal CSS) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 99999; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: #17171f; width: 100%; max-width: 850px; border-radius: 12px; border: 1px solid #00ffcc; padding: 25px; box-shadow: 0 0 25px rgba(0,255,204,0.2); max-height: 90vh; overflow-y: auto; text-align: left; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #222; padding-bottom: 12px; margin-bottom: 15px; }
+        .modal-close { font-size: 24px; color: #ff4444; cursor: pointer; font-weight: bold; user-select: none; }
+        .db-table { width: 100%; border-collapse: collapse; background: #14141f; border-radius: 8px; overflow: hidden; }
+        .db-table th, .db-table td { padding: 12px 15px; border-bottom: 1px solid #222; font-size: 13.5px; text-align: left; }
+        .db-table th { background: #1f1f2e; color: #00ffcc; text-transform: uppercase; font-size: 11.5px; font-weight: bold; }
+        .db-table tr:hover { background: rgba(0,255,204,0.02); }
         
         .pass-wrapper { position: relative; width: 100%; }
         .eye-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #00ffcc; font-size: 20px; user-select: none; z-index: 10; font-weight: bold; }
@@ -25,7 +35,9 @@
         .google-btn:hover { background: #357ae8; box-shadow: 0 0 10px rgba(66,133,244,0.4); }
         
         .client-card { background: #222; padding: 15px; margin: 15px 0; border-radius: 8px; text-align: left; border: 1px solid #333; }
-        .action-btn { padding: 6px 12px; font-size: 11px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; margin-top: 8px; float: right; color: white; }
+        .action-btn { padding: 6px 12px; font-size: 11px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; margin-top: 4px; color: white; }
+        .btn-kick { background: #ff4444; }
+        .btn-block { background: #ffaa00; color: black; }
         .btn-approve { background: #00cc66; color: white; }
         .btn-reject { background: #ff4444; color: white; }
         .info-row { font-size: 13px; color: #aaa; margin: 4px 0; }
@@ -55,7 +67,7 @@
                 <div class="dropdown-menu" id="myDropdown">
                     <a href="/logout" style="color: #ff4444;">🚪 Log Out Platform</a>
                     {% if role == 'admin' %}
-                        <a href="/admin/active_customers" target="_blank" style="color: #00ffcc;">👥 View Active Customers ↗️</a>
+                        <a onclick="openModal()" style="color: #00ffcc;">👥 View Active Customers ⭐</a>
                     {% endif %}
                 </div>
             </div>
@@ -100,7 +112,7 @@
         {% elif role == 'admin' %}
             <h2>👑 Admin Control Room</h2>
             <p style="color: #00ffcc;">Platform Owner Mode</p>
-            <p style="font-size: 12px; color: #aaa;">💡 Click <b>☰ Menu</b> to open Active Customers List in a clean full page.</p>
+            <p style="font-size: 12px; color: #aaa;">💡 Click <b>☰ Menu</b> to see Active Customers in an Embedded Floating Table.</p>
             <hr style="border-color: #333;">
             
             <h4 style="text-align: left; color: #ffaa00; margin-bottom: 5px;">⏳ Pending Approval Requests:</h4>
@@ -121,8 +133,54 @@
                 {% endfor %}
                 {% if not has_pending %}
                     <p style="color: #666; font-size: 14px; padding: 20px;">No pending requests at the moment.</p>
-                 font-size: 14px; padding: 20px;">No pending requests at the moment.</p>
                 {% endif %}
+            </div>
+
+            <div class="modal-overlay" id="dbModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 style="color: #00ffcc; margin: 0;">👥 Active Approved Customers Room</h3>
+                        <span class="modal-close" onclick="closeModal()">&times;</span>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table class="db-table">
+                            <thead>
+                                <tr>
+                                    <th>Profiles</th>
+                                    <th>User ID</th>
+                                    <th>Linked Gmail</th>
+                                    <th>Password</th>
+                                    <th>Configured Niche</th>
+                                    <th>Action Management</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for phone, info in customers.items() %}
+                                    {% if info.is_approved %}
+                                        <tr>
+                                            <td>
+                                                <strong style="color: #fff;">{{ info.name }}</strong><br>
+                                                <span style="color: {% if info.is_blocked %}#ff4444{% else '#00cc66' %}; font-size: 10px;">
+                                                    {% if info.is_blocked %}[BLOCKED]{% else %}[ACTIVE]{% endif %}
+                                                </span>
+                                            </td>
+                                            <td style="font-weight: bold; color: #ccc;">{{ phone }}</td>
+                                            <td style="color: #aaa;">{{ info.gmail }}</td>
+                                            <td style="color: #ffcc00; font-weight: bold;">{{ info.password }}</td>
+                                            <td style="color: #00ffcc; font-size: 12.5px;">{{ info.category if info.category else 'NOT SET' }}</td>
+                                            <td>
+                                                <button class="action-btn btn-kick" onclick="deleteCustomer('{{ phone }}')">🗑️ KICK</button>
+                                                <button class="action-btn btn-block" onclick="toggleStatus('{{ phone }}', '{% if info.is_blocked %}unblock{% else %}block{% endif %}')">
+                                                    {% if info.is_blocked %}🔓 UNBLOCK{% else %}🚫 BLOCK{% endif %}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
         {% elif role == 'customer' %}
@@ -213,7 +271,6 @@
             "Motivation & Self-Improvement Quotes", "ASMR Sound Therapy & Relaxing", "Title AI Niche & Keywords Automation"
         ];
 
-        // সাজেশন বক্স ফিল্টারিং লজিক
         function filterCategories() {
             let input = document.getElementById('cat-search').value.toLowerCase(); let box = document.getElementById('suggestion-box'); box.innerHTML = '';
             if(!input) { box.style.display = 'none'; return; }
@@ -228,18 +285,17 @@
             } else { box.style.display = 'none'; }
         }
 
-        function toggleMenu(event) {
-            event.stopPropagation();
-            let m = document.getElementById('myDropdown');
-            m.style.display = (m.style.display === 'block') ? 'none' : 'block';
-        }
+        function toggleMenu(event) { event.stopPropagation(); let m = document.getElementById('myDropdown'); m.style.display = (m.style.display === 'block') ? 'none' : 'block'; }
+        
+        // 👥 পপ-আপ ডাটাবেস ওপেন/ক্লোজ করার জাদুকরী লজিক
+        function openModal() { document.getElementById('dbModal').style.display = 'flex'; document.getElementById('myDropdown').style.display = 'none'; }
+        function closeModal() { document.getElementById('dbModal').style.display = 'none'; }
 
         document.addEventListener('click', function(e){
             let searchInput = document.getElementById('cat-search'); let sugBox = document.getElementById('suggestion-box');
             if(searchInput && !searchInput.contains(e.target) && !sugBox.contains(e.target)) { sugBox.style.display = 'none'; }
-            
             let dropdown = document.getElementById('myDropdown');
-            if(dropdown && !dropdown.contains(e.target)) { dropdown.style.display = 'none'; }
+            if(dropdown && !dropdown.contains(e.target) && !e.target.classList.contains('three-lines')) { dropdown.style.display = 'none'; }
         });
 
         let checkApprovalInterval = null; let globalPendingPhone = "";
@@ -270,6 +326,9 @@
             let btn = document.getElementById('yt-connect-btn'); btn.innerText = "Connecting Google API Server...";
             fetch('/customer/auth_youtube', { method: 'POST' }).then(res => res.json()).then(data => { location.reload(); });
         }
+
+        function deleteCustomer(phoneNum) { if(confirm("Permanently delete user from database?")) { fetch('/admin/delete_user', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({target_user: phoneNum}) }).then(res => res.json()).then(data => { alert(data.message); location.reload(); }); } }
+        function toggleStatus(phoneNum, actionType) { fetch('/admin/toggle_status', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({target_user: phoneNum, action: actionType}) }).then(res => res.json()).then(data => { alert(data.message); location.reload(); }); }
 
         function setCategory() {
             let cat = document.getElementById('cat-search').value.trim(); if(!cat) { alert("Please select a category!"); return; }
