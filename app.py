@@ -76,12 +76,6 @@ def index():
             return redirect(url_for('index'))
     return render_template('index.html', role='guest')
 
-@app.route('/admin/active_customers')
-def active_customers_page():
-    if 'username' not in session or session.get('role') != 'admin':
-        return redirect(url_for('index'))
-    return render_template('active_customers.html', customers=get_all_customers())
-
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
     if 'username' not in session: return jsonify({"topic": "N/A", "title": "N/A", "desc_thumb": "N/A", "length": "N/A", "upload_time": "N/A", "status": "OFFLINE"})
@@ -148,7 +142,6 @@ def login():
         if user_data.get('is_blocked', False): 
             return jsonify({"status": "ERROR", "message": "🛑 LOGIN DENIED: Account is BLOCKED!"})
         
-        # 🔓 ডিভাইস লকিং রিমুভড (১টি আইডি একসাথে ৪টি ফোনে চলবে)
         session.permanent = True
         session['username'] = username
         session['role'] = "customer"
