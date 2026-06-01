@@ -17,7 +17,6 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 DB_FILE = "users_data.json"
 
 # ================= Google OAuth2 কনফিগারেশন =================
-# সুহান ভাই, তোমার রেন্ডার ডোমেনের লাইভ লিংক এখানে পারফেক্টলি লক করে দেওয়া হয়েছে
 GOOGLE_OAUTH_CONFIG = {
     "web": {
         "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
@@ -32,8 +31,6 @@ GOOGLE_OAUTH_CONFIG = {
 
 # YouTube API Read-Only স্কোপ
 YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-
-# লোকালহোস্টে প্রোটোকল সাপোর্ট ওভাররাইডের পাশাপাশি প্রোডাকশনে সিকিউর হ্যান্ডলিং
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 
@@ -42,7 +39,9 @@ def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # ডাটাবেসের সমস্ত কী (Keys) যেন স্ট্রিং থাকে তা নিশ্চিত করা হচ্ছে
+                return {str(k): v for k, v in data.items()}
         except Exception:
             pass
     
@@ -59,13 +58,15 @@ def load_db():
 
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        # ডাটাবেসে সেভ করার সময়ও সমস্ত কী-কে স্ট্রিং ফরম্যাটে কনভার্ট করা হচ্ছে
+        stringified_data = {str(k): v for k, v in data.items()}
+        json.dump(stringified_data, f, ensure_ascii=False, indent=2)
 
 def get_all_customers():
     users_db = load_db()
     customers = {}
     for uid, u in users_db.items():
-        if u.get("role") == "admin" or uid == "admin":
+        if u.get("role") == "admin" or str(uid) == "admin":
             continue
         approved_at_str = u.get("approved_at", "")
         days_left = 30
@@ -100,7 +101,7 @@ def index():
         if session.get('role') == 'admin':
             return render_template('index.html', role='admin', username=session['username'], customers=get_all_customers())
         
-        username = session['username']
+        username = str(session['username']).strip()
         users_db = load_db()
         user_info = users_db.get(username)
         
@@ -127,6 +128,7 @@ def index():
 def login():
     try:
         data = request.json
+        # এখানে ইনপুট ইউজার আইডি বা ফোন নম্বরটিকে কড়াভাবে স্ট্রিং-এ কনভার্ট করা হলো
         username = str(data.get('username', '')).strip()
         password = str(data.get('password', '')).strip()
         
@@ -142,8 +144,9 @@ def login():
             session['role'] = "admin"
             return jsonify({"status": "SUCCESS", "message": "Admin verified! Access granted."})
             
+        # ডাটাবেস থেকে স্ট্রিং কী দিয়ে ডেটা খোঁজা হচ্ছে
         user_data = users_db.get(username)
-        if user_data and user_data["password"] == password:
+        if user_data and str(user_data["password"]) == password:
             if not user_data.get('is_approved', False):
                 return jsonify({"status": "ERROR", "message": "Request is still PENDING approval!"})
             if user_data.get('is_blocked', False):
@@ -166,7 +169,7 @@ def register_request():
         name = data.get('name', '').strip()
         phone = str(data.get('phone', '')).strip()
         gmail = data.get('gmail', '').strip()
-        password = data.get('password', '').strip()
+        password = str(data.get('password', '')).strip()
         
         if not phone or phone.lower() in ["admin", "owner", "superadmin_ss"]:
             return jsonify({"status": "ERROR", "message": "Reserved/Invalid Phone ID Number!"})
@@ -261,7 +264,7 @@ def oauth2callback():
         channel_name = channel_info.get('title', 'Unknown Channel')
         
         users_db = load_db()
-        username = session.get('username')
+        username = str(session.get('username')).strip()
         
         if username in users_db:
             users_db[username]['youtube_linked'] = True
@@ -282,7 +285,7 @@ def set_category():
     try:
         selected_cat = request.json.get('category', '').strip()
         users_db = load_db()
-        username = session['username']
+        username = str(session['username']).strip()
         if username in users_db:
             users_db[username]['category'] = selected_cat
             save_db(users_db)
@@ -299,7 +302,7 @@ def get_live_ai_data():
         return jsonify({"topic": "N/A", "title": "N/A", "desc_thumb": "N/A", "length": "N/A", "upload_time": "N/A", "status": "OFFLINE"})
     
     users_db = load_db()
-    user_info = users_db.get(session['username'], {})
+    user_info = users_db.get(str(session['username']).strip(), {})
     category = user_info.get('category', '').lower()
     current_time = datetime.now()
     
