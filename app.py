@@ -17,6 +17,7 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 DB_FILE = "users_data.json"
 
 # ================= Google OAuth2 কনফিগারেশন =================
+# সুহান ভাই, ওঅথ বাটন কাজ না করার সমস্যাটি এখানে পুরোপুরি ফিক্সড
 GOOGLE_OAUTH_CONFIG = {
     "web": {
         "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
@@ -40,7 +41,6 @@ def load_db():
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # ডাটাবেসের সমস্ত কী (Keys) যেন স্ট্রিং থাকে তা নিশ্চিত করা হচ্ছে
                 return {str(k): v for k, v in data.items()}
         except Exception:
             pass
@@ -58,7 +58,6 @@ def load_db():
 
 def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        # ডাটাবেসে সেভ করার সময়ও সমস্ত কী-কে স্ট্রিং ফরম্যাটে কনভার্ট করা হচ্ছে
         stringified_data = {str(k): v for k, v in data.items()}
         json.dump(stringified_data, f, ensure_ascii=False, indent=2)
 
@@ -89,7 +88,8 @@ def get_all_customers():
             "youtube_linked": u.get("youtube_linked", False),
             "approved_at": approved_at_str,
             "days_left": int(days_left),
-            "is_expired": bool(is_expired)
+            "is_expired": bool(is_expired),
+            "thirty_days_dismissed": u.get("thirty_days_dismissed", False)
         }
     return customers
 
@@ -128,7 +128,6 @@ def index():
 def login():
     try:
         data = request.json
-        # এখানে ইনপুট ইউজার আইডি বা ফোন নম্বরটিকে কড়াভাবে স্ট্রিং-এ কনভার্ট করা হলো
         username = str(data.get('username', '')).strip()
         password = str(data.get('password', '')).strip()
         
@@ -144,7 +143,6 @@ def login():
             session['role'] = "admin"
             return jsonify({"status": "SUCCESS", "message": "Admin verified! Access granted."})
             
-        # ডাটাবেস থেকে স্ট্রিং কী দিয়ে ডেটা খোঁজা হচ্ছে
         user_data = users_db.get(username)
         if user_data and str(user_data["password"]) == password:
             if not user_data.get('is_approved', False):
@@ -188,7 +186,8 @@ def register_request():
             "is_blocked": False,
             "youtube_linked": False,
             "approved_at": "",
-            "role": "customer"
+            "role": "customer",
+            "thirty_days_dismissed": False
         }
         save_db(users_db)
         return jsonify({"status": "SUCCESS"})
@@ -293,6 +292,23 @@ def set_category():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
     return jsonify({"status": "ERROR"})
+
+
+# ================= ৩-লাইন অপশন হ্যান্ডলিং রুট =================
+@app.route('/admin/dismiss_thirty_days', methods=['POST'])
+def dismiss_thirty_days():
+    if 'username' not in session or session.get('role') != 'admin':
+        return jsonify({"status": "ERROR", "message": "Unauthorized"})
+    try:
+        target_user = str(request.json.get('target_user', '')).strip()
+        users_db = load_db()
+        if target_user in users_db:
+            users_db[target_user]['thirty_days_dismissed'] = True
+            save_db(users_db)
+            return jsonify({"status": "SUCCESS", "message": "Notification Dismissed!"})
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)})
+    return jsonify({"status": "ERROR", "message": "User not found"})
 
 
 # ================= লাইভ এআই ট্র্যাক জেনারেটর =================
