@@ -244,7 +244,7 @@
                     </div>
                 </div>
             {% endif %}
-            <div id="msg" style="margin-top: 15px; color: #ffcc00; font-weight: bold;"></div>
+            <div id="customer-msg" style="margin-top: 15px; color: #ffcc00; font-weight: bold;"></div>
         {% endif %}
     </div>
 
@@ -319,13 +319,18 @@
         function toggleForm(type) {
             if (type === 'register') { document.getElementById('login-form').style.display = 'none'; document.getElementById('register-form').style.display = 'block'; }
             else { document.getElementById('login-form').style.display = 'block'; document.getElementById('register-form').style.display = 'none'; }
-            document.getElementById('msg').innerText = "";
+            let msgBox = document.getElementById('msg');
+            if(msgBox) msgBox.innerText = "";
         }
 
         function login() {
             let u = document.getElementById('user').value; let p = document.getElementById('pass').value;
             fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) })
-            .then(res => res.json()).then(data => { document.getElementById('msg').innerText = data.message; if (data.status === "SUCCESS") { setTimeout(() => { location.reload(); }, 1000); } });
+            .then(res => res.json()).then(data => { 
+                let msgBox = document.getElementById('msg');
+                if(msgBox) msgBox.innerText = data.message; 
+                if (data.status === "SUCCESS") { setTimeout(() => { location.reload(); }, 1000); } 
+            });
         }
 
         function submitForApproval() {
@@ -335,8 +340,15 @@
             globalPendingPhone = ph;
             fetch('/register_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n, phone: ph, gmail: gm, password: pa }) })
             .then(res => res.json()).then(data => {
-                if (data.status === "SUCCESS") { document.getElementById('register-form').style.display = 'none'; document.getElementById('processing-form').style.display = 'block'; checkApprovalInterval = setInterval(pollApprovalStatus, 2000); }
-                else { document.getElementById('msg').innerText = data.message; }
+                if (data.status === "SUCCESS") { 
+                    document.getElementById('register-form').style.display = 'none'; 
+                    document.getElementById('processing-form').style.display = 'block'; 
+                    checkApprovalInterval = setInterval(pollApprovalStatus, 2000); 
+                }
+                else { 
+                    let msgBox = document.getElementById('msg');
+                    if(msgBox) msgBox.innerText = data.message; 
+                }
             });
         }
 
@@ -354,7 +366,7 @@
         }
 
         function connectGoogle() {
-            let btn = document.getElementById('yt-connect-btn'); btn.innerText = "Connecting...";
+            let btn = document.getElementById('yt-connect-btn'); if(btn) btn.innerText = "Connecting...";
             fetch('/customer/auth_youtube', { method: 'POST' }).then(res => res.json()).then(data => { location.reload(); });
         }
 
@@ -378,15 +390,19 @@
         }
 
         function fetchLiveAiTracking() {
+            // Check if live tracker elements exist in DOM before updating to prevent errors
             if (document.getElementById('live-topic')) {
-                fetch('/get_live_ai_data').then(res => res.json()).then(data => {
-                    document.getElementById('live-topic').innerText = data.topic;
-                    document.getElementById('live-title').innerText = data.title;
-                    document.getElementById('live-desc').innerText = data.desc_thumb;
-                    document.getElementById('live-length').innerText = data.length;
-                    document.getElementById('live-time').innerText = data.upload_time;
-                    document.getElementById('live-status').innerText = data.status;
-                });
+                fetch('/get_live_ai_data')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('live-topic').innerText = data.topic || "Generating...";
+                    document.getElementById('live-title').innerText = data.title || "Analyzing...";
+                    document.getElementById('live-desc').innerText = data.desc_thumb || "Processing...";
+                    document.getElementById('live-length').innerText = data.length || "Calculating...";
+                    document.getElementById('live-time').innerText = data.upload_time || "Analyzing traffic...";
+                    document.getElementById('live-status').innerText = data.status || "AI BOT WORKING...";
+                })
+                .catch(err => console.log("Live tracker sync waiting for category setup..."));
             }
         }
 
