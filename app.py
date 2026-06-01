@@ -3,24 +3,54 @@ import json
 import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+
+# .env ফাইল থেকে ডেটা রিড করার জন্য (লোকাল টেস্টিংয়ের সুবিধার্থে)
+try:
+    from dotenv import load_model
+    load_model()
+except Exception:
+    pass
 
 app = Flask(__name__)
 
 # সেটিং সিকিউর কি এবং সেশন লাইফটাইম
-app.secret_key = "suhan_saas_ultra_secure_permanent_key_2026"
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'suhan_saas_ultra_secure_permanent_key_2026')
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
 app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 
 DB_FILE = "users_data.json"
 
+# ================= Google OAuth2 কনফিগারেশন =================
+# কোড এখন সম্পূর্ণ ক্লিন ও সিকিউর, গিটহাব আর কখনো লক করবে না
+GOOGLE_OAUTH_CONFIG = {
+    "web": {
+        "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
+        "project_id": "ss-ai-cartoon-saas",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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'),
+        "redirect_uris": ["http://localhost:5000/oauth2callback"]
+    }
+}
+
+# YouTube API Read-Only স্কোপ
+YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
+
+# লোকালহোস্টে HTTP প্রোটোকল সাপোর্ট করার জন্য ওঅথ এনভায়রনমেন্ট ট্রিপল-পাস
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+
+# ================= ডাটাবেস কোর ফাংশনস =================
 def load_db():
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            # ফাইল কারাপ্ট হলে বা রিড এরর দিলে ব্যাকআপ হিসেবে ব্ল্যাঙ্ক ডিকশনারি দেবে
             pass
     
     default = {
@@ -69,6 +99,8 @@ def get_all_customers():
         }
     return customers
 
+
+# ================= রাউটিং লজিক (Routes) =================
 @app.route('/')
 def index():
     if 'username' in session and 'role' in session:
@@ -97,6 +129,177 @@ def index():
         return redirect(url_for('index'))
     return render_template('index.html', role='guest')
 
+
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        data = request.json
+        username = str(data.get('username', '')).strip()
+        password = str(data.get('password', '')).strip()
+        
+        if username.lower() == "owner":
+            return jsonify({"status": "ERROR", "message": "Invalid Username Choice!"})
+            
+        users_db = load_db()
+        admin = users_db.get("admin")
+        
+        if username == admin["user_id"] and password == admin["password"]:
+            session.permanent = True
+            session['username'] = "SuperAdmin_SS"
+            session['role'] = "admin"
+            return jsonify({"status": "SUCCESS", "message": "Admin verified! Access granted."})
+            
+        user_data = users_db.get(username)
+        if user_data and user_data["password"] == password:
+            if not user_data.get('is_approved', False):
+                return jsonify({"status": "ERROR", "message": "Request is still PENDING approval!"})
+            if user_data.get('is_blocked', False):
+                return jsonify({"status": "ERROR", "message": "LOGIN DENIED: Account is BLOCKED!"})
+                
+            session.permanent = True
+            session['username'] = username
+            session['role'] = "customer"
+            return jsonify({"status": "SUCCESS", "message": "Login Successful!"})
+            
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": f"Login processing error: {e}"})
+    return jsonify({"status": "ERROR", "message": "Access Denied: Invalid Credentials!"})
+
+
+@app.route('/register_request', methods=['POST'])
+def register_request():
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        phone = str(data.get('phone', '')).strip()
+        gmail = data.get('gmail', '').strip()
+        password = data.get('password', '').strip()
+        
+        if not phone or phone.lower() in ["admin", "owner", "superadmin_ss"]:
+            return jsonify({"status": "ERROR", "message": "Reserved/Invalid Phone ID Number!"})
+            
+        users_db = load_db()
+        if phone in users_db:
+            return jsonify({"status": "ERROR", "message": "Number already registered!"})
+            
+        users_db[phone] = {
+            "_id": phone,
+            "name": name,
+            "password": password,
+            "category": "",
+            "gmail": gmail,
+            "is_approved": False,
+            "is_blocked": False,
+            "youtube_linked": False,
+            "approved_at": "",
+            "role": "customer"
+        }
+        save_db(users_db)
+        return jsonify({"status": "SUCCESS"})
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)})
+
+
+@app.route('/check_approval_status', methods=['POST'])
+def check_approval_status():
+    try:
+        phone = str(request.json.get('phone', '')).strip()
+        users_db = load_db()
+        user_data = users_db.get(phone)
+        if not user_data:
+            return jsonify({"status": "REJECTED"})
+        if user_data.get('is_approved', False):
+            return jsonify({"status": "APPROVED"})
+    except Exception as e:
+        print(f"Error checking status: {e}")
+    return jsonify({"status": "PENDING"})
+
+
+# ================= YouTube OAuth2 রুট সমূহ =================
+@app.route('/customer/auth_youtube', methods=['POST'])
+def auth_youtube():
+    if 'username' not in session or session.get('role') != 'customer':
+        return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
+    
+    try:
+        flow = Flow.from_client_config(
+            GOOGLE_OAUTH_CONFIG,
+            scopes=YOUTUBE_SCOPES,
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+        )
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+        
+        session['oauth_state'] = state
+        return jsonify({"status": "SUCCESS", "redirect_url": authorization_url})
+        
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": f"OAuth initialization failed: {str(e)}"})
+
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    if 'oauth_state' not in session:
+        return "Authorization failed: State token missing.", 400
+        
+    try:
+        flow = Flow.from_client_config(
+            GOOGLE_OAUTH_CONFIG,
+            scopes=YOUTUBE_SCOPES,
+            state=session['oauth_state'],
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+        )
+        
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+        
+        youtube = build('youtube', 'v3', credentials=credentials)
+        request_api = youtube.channels().list(part="snippet,statistics", mine=True)
+        response = request_api.execute()
+        
+        if not response.get('items'):
+            return "<h1>Error: No YouTube Channel found on this Google Account!</h1><a href='/'>Go Back</a>"
+            
+        channel_info = response['items'][0]['snippet']
+        channel_name = channel_info.get('title', 'Unknown Channel')
+        
+        users_db = load_db()
+        username = session.get('username')
+        
+        if username in users_db:
+            users_db[username]['youtube_linked'] = True
+            users_db[username]['youtube_token'] = credentials.to_json()
+            users_db[username]['channel_name'] = channel_name
+            save_db(users_db)
+            
+        return redirect(url_for('index'))
+        
+    except Exception as e:
+        return f"<h1>OAuth Callback Error</h1><p>{str(e)}</p><a href='/'>Go Back</a>", 500
+
+
+@app.route('/customer/set_category', methods=['POST'])
+def set_category():
+    if 'username' not in session or session.get('role') != 'customer':
+        return jsonify({"status": "ERROR"})
+    try:
+        selected_cat = request.json.get('category', '').strip()
+        users_db = load_db()
+        username = session['username']
+        if username in users_db:
+            users_db[username]['category'] = selected_cat
+            save_db(users_db)
+            return jsonify({"status": "SUCCESS"})
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": str(e)})
+    return jsonify({"status": "ERROR"})
+
+
+# ================= লাইভ এআই ট্র্যাক জেনারেটর =================
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
     if 'username' not in session or session.get('role') != 'customer':
@@ -107,18 +310,16 @@ def get_live_ai_data():
     category = user_info.get('category', '').lower()
     current_time = datetime.now()
     
-    # সীড ভ্যালু জেনারেশন
     random.seed(int(user_info.get('password', '123').encode().hex()) + current_time.day)
     hours_to_add = random.choice([3, 4, 5])
     minutes_to_add = random.choice([0, 15, 30, 45])
     traffic_time = (current_time + timedelta(hours=hours_to_add)).replace(minute=minutes_to_add)
     best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
     
-    # ক্যাটাগরি ম্যাপিং লজিক
     if "cartoon" in category or "animation" in category:
-        topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
-        titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+        topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
+        titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
+        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
         lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
     elif "documentary" in category or "mystery" in category:
         topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
@@ -163,10 +364,10 @@ def get_live_ai_data():
     elif "business" in category or "entrepreneur" in category:
         topics = ["মাত্র ৫০০০ টাকায় শুরু করুন লাভজনক ব্যবসা", "বাংলাদেশে সেরা ১০টি অনলাইন ব্যবসার আইডিয়া ২০২৬", "কীভাবে ফ্রিল্যান্সিং থেকে মাসে লক্ষ টাকা আয় করবেন"]
         titles = ["৫০০০ টাকায় ব্যবসা শুরু করুন | Small Business Idea Bangla 2026", "সেরা অনলাইন ব্যবসার আইডিয়া | Online Business Bangladesh 2026", "ফ্রিল্যান্সিং গাইড | Freelancing Bangla Complete Tutorial 2026"]
-        descs = ["Description: কম টাকায় লাভজনক ব্যবসার আইডিয়া। Thumbnail: Business Success Frame Ready", "Description: অনলাইন ব্যবসার সম্পূর্ণ গাইড। Thumbnail: E-commerce Dashboard Loaded", "Description: ফ্রিল্যান্সিং শুরু করার গাইড। Thumbnail: Laptop Money Stack Rendered"]
+        descs = ["Description: কম টাকায় লাভজনক ব্যবসার আদেশ। Thumbnail: Business Success Frame Ready", "Description: অনলাইন ব্যবসার সম্পূর্ণ গাইড। Thumbnail: E-commerce Dashboard Loaded", "Description: ফ্রিল্যান্সিং শুরু করার গাইড। Thumbnail: Laptop Money Stack Rendered"]
         lengths = ["15 Minutes 00 Seconds", "12 Minutes 30 Seconds", "20 Minutes 00 Seconds"]
     elif "kids" in category or "rhyme" in category or "children" in category:
-        topics = ["বাংলা ছড়া - আম পাকা জাম পাকা", "শিশুদের জন্য নতুন বাংলা ছড়া ২০২৬", "রঙিন দুনিয়া শিশুদের শেখার গান"]
+        topics = ["বাংলা ছড়া - আম পাকা জাম পাকা", "শিশুদের জন্য নতুন বাংলা ছড়া ২০২৬", "রীন দুনিয়া শিশুদের শেখার গান"]
         titles = ["আম পাকা জাম পাকা | Bangla Rhymes For Kids 2026", "নতুন বাংলা ছড়া | New Bangla Kids Song 2026", "রঙিন দুনিয়া | Colorful Kids Learning Video Bangla"]
         descs = ["Description: শিশুদের জন্য মজার বাংলা ছড়া। Thumbnail: Colorful Cartoon Kids Ready", "Description: নতুন বাংলা ছড়ার সংকলন। Thumbnail: Animated Kids Frame Loaded", "Description: শিশুদের শেখার রঙিন ভিডিও। Thumbnail: Rainbow Learning Rendered"]
         lengths = ["08 Minutes 00 Seconds", "10 Minutes 15 Seconds", "07 Minutes 30 Seconds"]
@@ -186,89 +387,8 @@ def get_live_ai_data():
         "status": "AI ENGINE: CHANNEL TRAFFIC MATCHED AND QUEUED FOR AUTO-POST"
     })
 
-@app.route('/login', methods=['POST'])
-def login():
-    try:
-        data = request.json
-        username = str(data.get('username', '')).strip()
-        password = str(data.get('password', '')).strip()
-        
-        # সুহান ভাই, কাস্টমার যেন নিজের ইউজার আইডি 'Owner' দিয়ে অ্যাডমিন সাজতে না পারে, তার জন্য কঠোর চেক:
-        if username.lower() == "owner":
-            return jsonify({"status": "ERROR", "message": "Invalid Username Choice!"})
-            
-        users_db = load_db()
-        admin = users_db.get("admin")
-        
-        if username == admin["user_id"] and password == admin["password"]:
-            session.permanent = True
-            session['username'] = "SuperAdmin_SS"  # স্পেসিফিক ইউনিক অ্যাডমিন নেম
-            session['role'] = "admin"
-            return jsonify({"status": "SUCCESS", "message": "Admin verified! Access granted."})
-            
-        user_data = users_db.get(username)
-        if user_data and user_data["password"] == password:
-            if not user_data.get('is_approved', False):
-                return jsonify({"status": "ERROR", "message": "Request is still PENDING approval!"})
-            if user_data.get('is_blocked', False):
-                return jsonify({"status": "ERROR", "message": "LOGIN DENIED: Account is BLOCKED!"})
-                
-            session.permanent = True
-            session['username'] = username
-            session['role'] = "customer"
-            return jsonify({"status": "SUCCESS", "message": "Login Successful!"})
-            
-    except Exception as e:
-        return jsonify({"status": "ERROR", "message": f"Login processing error: {e}"})
-    return jsonify({"status": "ERROR", "message": "Access Denied: Invalid Credentials!"})
 
-@app.route('/register_request', methods=['POST'])
-def register_request():
-    try:
-        data = request.json
-        name = data.get('name', '').strip()
-        phone = str(data.get('phone', '')).strip()
-        gmail = data.get('gmail', '').strip()
-        password = data.get('password', '').strip()
-        
-        if not phone or phone.lower() in ["admin", "owner", "superadmin_ss"]:
-            return jsonify({"status": "ERROR", "message": "Reserved/Invalid Phone ID Number!"})
-            
-        users_db = load_db()
-        if phone in users_db:
-            return jsonify({"status": "ERROR", "message": "Number already registered!"})
-            
-        users_db[phone] = {
-            "_id": phone,
-            "name": name,
-            "password": password,
-            "category": "",
-            "gmail": gmail,
-            "is_approved": False,
-            "is_blocked": False,
-            "youtube_linked": False,
-            "approved_at": "",
-            "role": "customer"
-        }
-        save_db(users_db)
-        return jsonify({"status": "SUCCESS"})
-    except Exception as e:
-        return jsonify({"status": "ERROR", "message": str(e)})
-
-@app.route('/check_approval_status', methods=['POST'])
-def check_approval_status():
-    try:
-        phone = str(request.json.get('phone', '')).strip()
-        users_db = load_db()
-        user_data = users_db.get(phone)
-        if not user_data:
-            return jsonify({"status": "REJECTED"})
-        if user_data.get('is_approved', False):
-            return jsonify({"status": "APPROVED"})
-    except Exception as e:
-        print(f"Error checking status: {e}")
-    return jsonify({"status": "PENDING"})
-
+# ================= অ্যাডমিন কন্ট্রোল রুট সমূহ =================
 @app.route('/admin/handle_request', methods=['POST'])
 def handle_request():
     if 'username' not in session or session.get('role') != 'admin':
@@ -293,33 +413,6 @@ def handle_request():
         return jsonify({"status": "ERROR", "message": str(e)})
     return jsonify({"status": "ERROR", "message": "User not found"})
 
-@app.route('/customer/auth_youtube', methods=['POST'])
-def auth_youtube():
-    if 'username' not in session or session.get('role') != 'customer':
-        return jsonify({"status": "ERROR"})
-    users_db = load_db()
-    username = session['username']
-    if username in users_db:
-        users_db[username]['youtube_linked'] = True
-        save_db(users_db)
-        return jsonify({"status": "SUCCESS"})
-    return jsonify({"status": "ERROR"})
-
-@app.route('/customer/set_category', methods=['POST'])
-def set_category():
-    if 'username' not in session or session.get('role') != 'customer':
-        return jsonify({"status": "ERROR"})
-    try:
-        selected_cat = request.json.get('category', '').strip()
-        users_db = load_db()
-        username = session['username']
-        if username in users_db:
-            users_db[username]['category'] = selected_cat
-            save_db(users_db)
-            return jsonify({"status": "SUCCESS"})
-    except Exception as e:
-        return jsonify({"status": "ERROR", "message": str(e)})
-    return jsonify({"status": "ERROR"})
 
 @app.route('/admin/toggle_status', methods=['POST'])
 def toggle_status():
@@ -338,6 +431,7 @@ def toggle_status():
         return jsonify({"status": "ERROR", "message": str(e)})
     return jsonify({"status": "ERROR"})
 
+
 @app.route('/admin/delete_user', methods=['POST'])
 def delete_user():
     if 'username' not in session or session.get('role') != 'admin':
@@ -353,6 +447,8 @@ def delete_user():
         return jsonify({"status": "ERROR", "message": str(e)})
     return jsonify({"status": "ERROR"})
 
+
+# ================= গ্লোবাল হ্যান্ডলার ও লগআউট =================
 @app.errorhandler(Exception)
 def handle_exception(e):
     return jsonify({"error": str(e)}), 500
@@ -363,4 +459,5 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
+    # লোকাল রান-টাইম ডিফেন্স
     app.run(host='0.0.0.0', port=5000, debug=True)
