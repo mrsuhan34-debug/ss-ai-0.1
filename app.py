@@ -1,4 +1,5 @@
 import os
+import json
 import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -10,16 +11,32 @@ app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
 app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 
-users_db = {
-    "admin": {
-        "_id": "admin",
-        "user_id": "SS_ELITE_ADMIN_2026",
-        "password": "REK_#9824_SNC_@Z7X",
-        "role": "admin"
+DB_FILE = "users_data.json"
+
+def load_db():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                return json.load(f)
+        except:
+            pass
+    default = {
+        "admin": {
+            "_id": "admin",
+            "user_id": "SS_ELITE_ADMIN_2026",
+            "password": "REK_#9824_SNC_@Z7X",
+            "role": "admin"
+        }
     }
-}
+    save_db(default)
+    return default
+
+def save_db(data):
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def get_all_customers():
+    users_db = load_db()
     customers = {}
     for uid, u in users_db.items():
         if u.get("role") == "admin":
@@ -55,11 +72,12 @@ def index():
         if session.get('role') == 'admin':
             return render_template('index.html', role='admin', username=session['username'], customers=get_all_customers())
         username = session['username']
+        users_db = load_db()
         user_info = users_db.get(username)
         if user_info and user_info.get('is_approved', False):
             if user_info.get('is_blocked', False):
                 session.clear()
-                return "<h1>🛑 Account Blocked By Admin!</h1><a href='/logout'>Go Back</a>"
+                return "<h1>Account Blocked By Admin!</h1><a href='/logout'>Go Back</a>"
             return render_template(
                 'index.html',
                 role='customer',
@@ -78,6 +96,7 @@ def index():
 def get_live_ai_data():
     if 'username' not in session:
         return jsonify({"topic": "N/A", "title": "N/A", "desc_thumb": "N/A", "length": "N/A", "upload_time": "N/A", "status": "OFFLINE"})
+    users_db = load_db()
     user_info = users_db.get(session['username'], {})
     category = user_info.get('category', '').lower()
     current_time = datetime.now()
@@ -85,24 +104,67 @@ def get_live_ai_data():
     hours_to_add = random.choice([3, 4, 5])
     minutes_to_add = random.choice([0, 15, 30, 45])
     traffic_time = (current_time + timedelta(hours=hours_to_add)).replace(minute=minutes_to_add)
-    best_time = f"⏱️ TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
-
+    best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
     if "cartoon" in category:
         topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
-        titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! 👺 | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার একদম নতুন পর্ব। \nThumbnail: 🟢 HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। \nThumbnail: 🟢 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে কীভাবে উচিত শিক্ষা দিল টুনটুনি। \nThumbnail: 🟢 AI Frame Rendered"]
-        lengths = ["⏳ 11 Minutes 45 Seconds", "⏳ 09 Minutes 12 Seconds", "⏳ 13 Minutes 20 Seconds"]
-    elif "documentary" in category:
+        titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
+        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+        lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
+    elif "documentary" in category or "mystery" in category:
         topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
-        titles = ["Bermuda Triangle: The Unsolved Graveyard of Ocean 🌊", "The Secret Rooms Inside Pyramids Hidden For 4000 Years!", "The Deadliest Hidden Codes of WW2 Left Unanswered."]
-        descs = ["Description: Secrets of deep oceanic anomalies.\nThumbnail: 🟢 Ultra-Detail Overlay Ready", "Description: Exploring hidden tunnels of Egypt.\nThumbnail: 🟢 3D Map Vector Loaded", "Description: Unsolved historical communication codes.\nThumbnail: 🟢 Vintage Classified Graphic"]
-        lengths = ["⏳ 18 Minutes 24 Seconds", "⏳ 22 Minutes 10 Seconds", "⏳ 15 Minutes 50 Seconds"]
+        titles = ["Bermuda Triangle: The Unsolved Graveyard of Ocean", "The Secret Rooms Inside Pyramids Hidden For 4000 Years!", "The Deadliest Hidden Codes of WW2 Left Unanswered."]
+        descs = ["Description: Secrets of deep oceanic anomalies. Thumbnail: Ultra-Detail Overlay Ready", "Description: Exploring hidden tunnels of Egypt. Thumbnail: 3D Map Vector Loaded", "Description: Unsolved historical communication codes. Thumbnail: Vintage Classified Graphic"]
+        lengths = ["18 Minutes 24 Seconds", "22 Minutes 10 Seconds", "15 Minutes 50 Seconds"]
+    elif "islamic" in category or "motivat" in category:
+        topics = ["ইসলামিক অনুপ্রেরণামূলক গল্প ২০২৬", "জীবন বদলে দেওয়া ১০টি ইসলামিক উক্তি", "সাফল্যের পথে ইসলামিক জীবনধারা"]
+        titles = ["আল্লাহর উপর ভরসা রাখো | Islamic Motivation 2026", "জীবন বদলে যাবে এই ১০টি কথায় | Bangla Islamic Video", "সফলতার রহস্য | Islamic Life Success Story Bangla"]
+        descs = ["Description: ইসলামিক অনুপ্রেরণামূলক ভিডিও। Thumbnail: Islamic Gold Frame Ready", "Description: ইসলামিক জীবনধারার সেরা উক্তি। Thumbnail: Quran Verse Overlay Loaded", "Description: সফলতার পথে ইসলামিক গাইড। Thumbnail: Mosque Sunset Rendered"]
+        lengths = ["12 Minutes 30 Seconds", "08 Minutes 45 Seconds", "15 Minutes 00 Seconds"]
+    elif "facts" in category or "amazing" in category or "unknown" in category:
+        topics = ["10 Amazing Facts About Space You Never Knew", "Mysterious Ancient Civilizations Hidden From History", "Unbelievable Animal Facts That Will Blow Your Mind"]
+        titles = ["10 Mind-Blowing Space Facts Nobody Talks About!", "The Lost Civilizations That Historians Are Hiding!", "These Animal Abilities Are Scientifically Impossible!"]
+        descs = ["Description: Space facts that will change your perspective. Thumbnail: Galaxy Neon Overlay Ready", "Description: Hidden history facts revealed. Thumbnail: Ancient Mystery Template Loaded", "Description: Unbelievable animal world facts. Thumbnail: Wildlife Action Frame Rendered"]
+        lengths = ["09 Minutes 15 Seconds", "11 Minutes 30 Seconds", "07 Minutes 45 Seconds"]
+    elif "cooking" in category or "recipe" in category or "food" in category:
+        topics = ["বাংলাদেশের সেরা ১০টি ঐতিহ্যবাহী রেসিপি", "মাত্র ১৫ মিনিটে রান্না করুন সুস্বাদু ভর্তা", "রমজানের বিশেষ ইফতার রেসিপি ২০২৬"]
+        titles = ["বাংলার ঐতিহ্যবাহী রান্না | Traditional Bangla Recipe 2026", "১৫ মিনিটে সেরা ভর্তা রেসিপি | Quick Bangla Cooking", "রমজানের সেরা ইফতার | Special Iftar Recipe Bangla"]
+        descs = ["Description: বাংলাদেশের ঐতিহ্যবাহী রান্নার রেসিপি। Thumbnail: Food HD Close-up Ready", "Description: দ্রুত ও সহজ ভর্তা রেসিপি। Thumbnail: Cooking Step Frame Loaded", "Description: রমজানের বিশেষ ইফতার আইটেম। Thumbnail: Iftar Spread Thumbnail Rendered"]
+        lengths = ["14 Minutes 20 Seconds", "10 Minutes 00 Seconds", "16 Minutes 30 Seconds"]
+    elif "travel" in category or "vlog" in category:
+        topics = ["বাংলাদেশের অজানা ১০টি সুন্দর জায়গা", "সুন্দরবনের গভীরে একদিন", "কক্সবাজার থেকে সেন্টমার্টিন নৌকা ভ্রমণ"]
+        titles = ["বাংলাদেশের লুকানো সৌন্দর্য | Hidden Beauty of Bangladesh 2026", "সুন্দরবনে বাঘের সাথে! | Sundarban Travel Vlog Bangla", "সেন্টমার্টিন দ্বীপ ভ্রমণ | Saint Martin Island Travel Vlog"]
+        descs = ["Description: বাংলাদেশের অজানা সুন্দর স্থানগুলো। Thumbnail: Aerial Bangladesh View Ready", "Description: সুন্দরবনের অ্যাডভেঞ্চার ভ্রমণ। Thumbnail: Mangrove Forest Frame Loaded", "Description: সেন্টমার্টিন দ্বীপের ট্রাভেল ভ্লগ। Thumbnail: Blue Ocean Island Rendered"]
+        lengths = ["18 Minutes 00 Seconds", "22 Minutes 15 Seconds", "19 Minutes 45 Seconds"]
+    elif "tech" in category or "review" in category or "gadget" in category:
+        topics = ["Top 5 Budget Smartphones of 2026 Under 15000 Taka", "Best AI Tools That Will Replace Your Job in 2026", "iPhone vs Android: Which is Better in 2026?"]
+        titles = ["Best Budget Phone 2026 Under 15000 Taka | Full Review Bangla", "5 AI Tools That Are Replacing Humans Right Now!", "iPhone 17 vs Samsung S26: Ultimate Comparison Bangla"]
+        descs = ["Description: সেরা বাজেট স্মার্টফোন রিভিউ। Thumbnail: Phone Comparison Layout Ready", "Description: AI tools replacing human jobs. Thumbnail: Futuristic AI Dashboard Loaded", "Description: iPhone vs Android ultimate battle. Thumbnail: Split Screen Phone Rendered"]
+        lengths = ["13 Minutes 30 Seconds", "10 Minutes 15 Seconds", "16 Minutes 00 Seconds"]
+    elif "health" in category or "fitness" in category:
+        topics = ["সকালে উঠে ৫টি কাজ যা আপনার জীবন বদলে দেবে", "ডায়াবেটিস নিয়ন্ত্রণের সহজ ১০টি উপায়", "প্রতিদিন ৩০ মিনিট ব্যায়াম করুন এই নিয়মে"]
+        titles = ["সকালের ৫টি অভ্যাস | Morning Routine That Changes Life Bangla", "ডায়াবেটিস নিয়ন্ত্রণ করুন ঘরে বসেই | Diabetes Control Bangla", "৩০ মিনিটের ব্যায়াম রুটিন | Daily Workout Plan Bangla 2026"]
+        descs = ["Description: সকালের সেরা স্বাস্থ্যকর অভ্যাস। Thumbnail: Morning Sunrise Fitness Ready", "Description: ডায়াবেটিস নিয়ন্ত্রণের টিপস। Thumbnail: Health Infographic Loaded", "Description: দৈনিক ব্যায়ামের সম্পূর্ণ গাইড। Thumbnail: Workout Action Frame Rendered"]
+        lengths = ["11 Minutes 00 Seconds", "14 Minutes 30 Seconds", "12 Minutes 45 Seconds"]
+    elif "horror" in category or "bhoot" in category:
+        topics = ["বাংলাদেশের সবচেয়ে ভয়ংকর ভুতুড়ে বাড়ির গল্প", "রাত ৩টার পর যা ঘটে কেউ বলে না", "সত্যিকারের ভূতের গল্প যা শুনলে ঘুম হারাম হয়"]
+        titles = ["বাংলাদেশের সবচেয়ে ভুতুড়ে বাড়ি! | Real Horror Story Bangla", "রাত ৩টার রহস্য | Midnight Horror Story Bangla 2026", "সত্যিকারের ভূতের গল্প | Real Ghost Story Bangladesh"]
+        descs = ["Description: বাংলাদেশের ভয়ংকর ভুতুড়ে স্থানের গল্প। Thumbnail: Dark Haunted House Ready", "Description: রাতের রহস্যময় ঘটনা। Thumbnail: Horror Night Frame Loaded", "Description: সত্যিকারের ভূতের অভিজ্ঞতা। Thumbnail: Ghost Silhouette Rendered"]
+        lengths = ["16 Minutes 00 Seconds", "13 Minutes 30 Seconds", "18 Minutes 45 Seconds"]
+    elif "business" in category or "entrepreneur" in category:
+        topics = ["মাত্র ৫০০০ টাকায় শুরু করুন লাভজনক ব্যবসা", "বাংলাদেশে সেরা ১০টি অনলাইন ব্যবসার আইডিয়া ২০২৬", "কীভাবে ফ্রিল্যান্সিং থেকে মাসে লক্ষ টাকা আয় করবেন"]
+        titles = ["৫০০০ টাকায় ব্যবসা শুরু করুন | Small Business Idea Bangla 2026", "সেরা অনলাইন ব্যবসার আইডিয়া | Online Business Bangladesh 2026", "ফ্রিল্যান্সিং গাইড | Freelancing Bangla Complete Tutorial 2026"]
+        descs = ["Description: কম টাকায় লাভজনক ব্যবসার আইডিয়া। Thumbnail: Business Success Frame Ready", "Description: অনলাইন ব্যবসার সম্পূর্ণ গাইড। Thumbnail: E-commerce Dashboard Loaded", "Description: ফ্রিল্যান্সিং শুরু করার গাইড। Thumbnail: Laptop Money Stack Rendered"]
+        lengths = ["15 Minutes 00 Seconds", "12 Minutes 30 Seconds", "20 Minutes 00 Seconds"]
+    elif "kids" in category or "rhyme" in category or "children" in category:
+        topics = ["বাংলা ছড়া - আম পাকা জাম পাকা", "শিশুদের জন্য নতুন বাংলা ছড়া ২০২৬", "রঙিন দুনিয়া শিশুদের শেখার গান"]
+        titles = ["আম পাকা জাম পাকা | Bangla Rhymes For Kids 2026", "নতুন বাংলা ছড়া | New Bangla Kids Song 2026", "রঙিন দুনিয়া | Colorful Kids Learning Video Bangla"]
+        descs = ["Description: শিশুদের জন্য মজার বাংলা ছড়া। Thumbnail: Colorful Cartoon Kids Ready", "Description: নতুন বাংলা ছড়ার সংকলন। Thumbnail: Animated Kids Frame Loaded", "Description: শিশুদের শেখার রঙিন ভিডিও। Thumbnail: Rainbow Learning Rendered"]
+        lengths = ["08 Minutes 00 Seconds", "10 Minutes 15 Seconds", "07 Minutes 30 Seconds"]
     else:
         topics = ["AI Automation Trends of 2026", "How To Scale Faceless YouTube Channel Fast", "Viral Editing Hacks with Topaz AI"]
-        titles = ["The Future is Here: AI Systems of 2026 You Can't Ignore! 🔥", "I Started a Faceless YouTube Channel in 24 Hours (Secret AI Strategy)", "Cinematic Visuals Masterclass: Topaz AI Video Enhancement Tutorial"]
-        descs = ["Description: Complete guide on 2026 AI tools.\nThumbnail: 🟢 Neon Dashboard Frame Ready", "Description: Faceless workflow for massive viral growth.\nThumbnail: 🟢 Analytics Concept Complete", "Description: Enhance old footage with AI processing.\nThumbnail: 🟢 Split Before/After Rendered"]
-        lengths = ["⏳ 08 Minutes 15 Seconds", "⏳ 10 Minutes 42 Seconds", "⏳ 07 Minutes 30 Seconds"]
-
+        titles = ["The Future is Here: AI Systems of 2026 You Cannot Ignore!", "I Started a Faceless YouTube Channel in 24 Hours (Secret AI Strategy)", "Cinematic Visuals Masterclass: Topaz AI Video Enhancement Tutorial"]
+        descs = ["Description: Complete guide on 2026 AI tools. Thumbnail: Neon Dashboard Frame Ready", "Description: Faceless workflow for massive viral growth. Thumbnail: Analytics Concept Complete", "Description: Enhance old footage with AI processing. Thumbnail: Split Before/After Rendered"]
+        lengths = ["08 Minutes 15 Seconds", "10 Minutes 42 Seconds", "07 Minutes 30 Seconds"]
     idx = random.randint(0, len(topics) - 1)
     return jsonify({
         "topic": topics[idx],
@@ -110,7 +172,7 @@ def get_live_ai_data():
         "desc_thumb": descs[idx],
         "length": lengths[idx],
         "upload_time": best_time,
-        "status": "🤖 AI ENGINE STATUS: 🟢 CHANNEL TRAFFIC MATCHED & QUEUED FOR AUTO-POST"
+        "status": "AI ENGINE: CHANNEL TRAFFIC MATCHED AND QUEUED FOR AUTO-POST"
     })
 
 @app.route('/login', methods=['POST'])
@@ -119,18 +181,19 @@ def login():
         data = request.json
         username = data.get('username', '').strip()
         password = data.get('password', '').strip()
+        users_db = load_db()
         admin = users_db.get("admin")
         if username == admin["user_id"] and password == admin["password"]:
             session.permanent = True
             session['username'] = "Owner"
             session['role'] = "admin"
-            return jsonify({"status": "SUCCESS", "message": "👑 Admin verified! Access granted."})
+            return jsonify({"status": "SUCCESS", "message": "Admin verified! Access granted."})
         user_data = users_db.get(username)
         if user_data and user_data["password"] == password:
             if not user_data.get('is_approved', False):
-                return jsonify({"status": "ERROR", "message": "⏳ Request is still PENDING approval!"})
+                return jsonify({"status": "ERROR", "message": "Request is still PENDING approval!"})
             if user_data.get('is_blocked', False):
-                return jsonify({"status": "ERROR", "message": "🛑 LOGIN DENIED: Account is BLOCKED!"})
+                return jsonify({"status": "ERROR", "message": "LOGIN DENIED: Account is BLOCKED!"})
             session.permanent = True
             session['username'] = username
             session['role'] = "customer"
@@ -147,8 +210,9 @@ def register_request():
         phone = data.get('phone', '').strip()
         gmail = data.get('gmail', '').strip()
         password = data.get('password', '').strip()
+        users_db = load_db()
         if phone in users_db:
-            return jsonify({"status": "ERROR", "message": "🛑 Number already registered!"})
+            return jsonify({"status": "ERROR", "message": "Number already registered!"})
         users_db[phone] = {
             "_id": phone,
             "name": name,
@@ -161,6 +225,7 @@ def register_request():
             "approved_at": "",
             "role": "customer"
         }
+        save_db(users_db)
         return jsonify({"status": "SUCCESS"})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
@@ -169,6 +234,7 @@ def register_request():
 def check_approval_status():
     try:
         phone = request.json.get('phone', '').strip()
+        users_db = load_db()
         user_data = users_db.get(phone)
         if not user_data:
             return jsonify({"status": "REJECTED"})
@@ -186,13 +252,16 @@ def handle_request():
         data = request.json
         target_user = data.get('target_user')
         action = data.get('action')
+        users_db = load_db()
         if action == 'approve':
             users_db[target_user]['is_approved'] = True
             users_db[target_user]['approved_at'] = datetime.now().strftime("%Y-%m-%d")
-            return jsonify({"status": "SUCCESS", "message": "✅ Account APPROVED Live!"})
+            save_db(users_db)
+            return jsonify({"status": "SUCCESS", "message": "Account APPROVED!"})
         elif action == 'reject':
             users_db.pop(target_user, None)
-            return jsonify({"status": "SUCCESS", "message": "❌ Account REJECTED!"})
+            save_db(users_db)
+            return jsonify({"status": "SUCCESS", "message": "Account REJECTED!"})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
     return jsonify({"status": "ERROR"})
@@ -201,7 +270,9 @@ def handle_request():
 def auth_youtube():
     if 'username' not in session:
         return jsonify({"status": "ERROR"})
+    users_db = load_db()
     users_db[session['username']]['youtube_linked'] = True
+    save_db(users_db)
     return jsonify({"status": "SUCCESS"})
 
 @app.route('/customer/set_category', methods=['POST'])
@@ -210,7 +281,9 @@ def set_category():
         return jsonify({"status": "ERROR"})
     try:
         selected_cat = request.json.get('category', '').strip()
+        users_db = load_db()
         users_db[session['username']]['category'] = selected_cat
+        save_db(users_db)
         return jsonify({"status": "SUCCESS"})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
@@ -223,8 +296,10 @@ def toggle_status():
         data = request.json
         target_user = data.get('target_user')
         action = data.get('action')
+        users_db = load_db()
         users_db[target_user]['is_blocked'] = (action == 'block')
-        return jsonify({"status": "SUCCESS", "message": f"📊 User status updated to {action.upper()}!"})
+        save_db(users_db)
+        return jsonify({"status": "SUCCESS", "message": f"User status updated to {action.upper()}!"})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
@@ -234,10 +309,16 @@ def delete_user():
         return jsonify({"status": "ERROR"})
     try:
         target_user = request.json.get('target_user')
+        users_db = load_db()
         users_db.pop(target_user, None)
-        return jsonify({"status": "SUCCESS", "message": "💥 Customer DELETED!"})
+        save_db(users_db)
+        return jsonify({"status": "SUCCESS", "message": "Customer DELETED!"})
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"error": str(e)}), 500
 
 @app.route('/logout')
 def logout():
@@ -246,4 +327,3 @@ def logout():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-# Suhan SaaS Final Safe Refresh All-In-One 2026
