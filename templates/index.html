@@ -50,6 +50,10 @@
         .tracker-value { color: #fff; font-weight: 500; }
         .live-pulse { width: 8px; height: 8px; background: #00ffcc; border-radius: 50%; display: inline-block; margin-right: 6px; box-shadow: 0 0 8px #00ffcc; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.6; } }
+        
+        /* ৩-লাইন নোটিফিকেশন জোনের নতুন স্টাইল */
+        .notification-zone { background: #1f1f2e; border: 1px solid #ffaa00; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; box-shadow: 0 0 10px rgba(255,170,0,0.1); }
+        .notification-item { display: flex; justify-content: space-between; align-items: center; background: #17171f; padding: 10px 15px; margin-top: 8px; border-radius: 6px; border-left: 4px solid #ffaa00; }
     </style>
 </head>
 <body>
@@ -107,6 +111,23 @@
             <p style="color: #00ffcc;">Platform Owner Mode</p>
             <p style="font-size: 12px; color: #aaa;">💡 Click <b>☰ Menu</b> to open Active Customers List.</p>
             <hr style="border-color: #333;">
+
+            <!-- সুহান ভাই, কাস্টমারের ৩০ দিন হয়ে গেলে উপরে শো করার নতুন অপশন জোন -->
+            {% set expired_count = lstrip %}
+            {% for phone, info in customers.items() %}
+                {% if info.is_expired and not info.thirty_days_dismissed %}
+                    {% if loop.first %}
+                        <div class="notification-zone">
+                            <h4 style="margin: 0; color: #ffaa00;">⚠️ 30 Days Over Customer List:</h4>
+                    {% endif %}
+                    <div class="notification-item" id="top-alert-{{ phone }}">
+                        <span style="font-size: 14px;">👤 <b>ID:</b> <span style="color: #ffcc00;">{{ phone }}</span> ({{ info.name }})</span>
+                        <button onclick="dismissThirtyDays('{{ phone }}')" style="width: auto; margin: 0; padding: 4px 12px; background: #ffaa00; color: #000; border: none; font-size: 12px; border-radius: 4px; font-weight: bold; cursor: pointer;">OK</button>
+                    </div>
+                    {% if loop.last %}</div>{% endif %}
+                {% endif %}
+            {% endfor %}
+
             <h4 style="text-align: left; color: #ffaa00; margin-bottom: 5px;">⏳ Pending Approval Requests:</h4>
             <div id="pending-list">
                 {% set has_pending = false %}
@@ -255,30 +276,14 @@
         }
 
         const ytCategories = [
-            "Bangla Cartoon Video Animation",
-            "Documentary & Mystery Bangla",
-            "Islamic Motivation Bangla",
-            "Amazing Facts & Unknown History",
-            "Cooking & Recipe Bangla",
-            "Travel Vlog Bangladesh",
-            "Tech Review & Gadgets Bangla",
-            "Health & Fitness Bangla",
-            "Horror Story Bangla",
-            "Business & Entrepreneurship Bangla",
-            "Kids Story & Rhymes Bangla",
-            "AI & Faceless YouTube Channel",
-            "Motivational Speech Bangla",
-            "Educational & Science Bangla",
-            "Comedy & Entertainment Bangla",
-            "Sports Highlights Bangla",
-            "DIY & Craft Tutorial Bangla",
-            "Relationship & Life Tips Bangla",
-            "News & Current Affairs Bangla",
-            "Music & Lyrics Video Bangla",
-            "Gaming & Esports Bangla",
-            "Quran & Hadith Bangla",
-            "Farming & Agriculture Bangla",
-            "Automobile & Car Review Bangla",
+            "Bangla Cartoon Video Animation", "Documentary & Mystery Bangla", "Islamic Motivation Bangla",
+            "Amazing Facts & Unknown History", "Cooking & Recipe Bangla", "Travel Vlog Bangladesh",
+            "Tech Review & Gadgets Bangla", "Health & Fitness Bangla", "Horror Story Bangla",
+            "Business & Entrepreneurship Bangla", "Kids Story & Rhymes Bangla", "AI & Faceless YouTube Channel",
+            "Motivational Speech Bangla", "Educational & Science Bangla", "Comedy & Entertainment Bangla",
+            "Sports Highlights Bangla", "DIY & Craft Tutorial Bangla", "Relationship & Life Tips Bangla",
+            "News & Current Affairs Bangla", "Music & Lyrics Video Bangla", "Gaming & Esports Bangla",
+            "Quran & Hadith Bangla", "Farming & Agriculture Bangla", "Automobile & Car Review Bangla",
             "Finance & Investment Bangla"
         ];
 
@@ -319,16 +324,14 @@
         function toggleForm(type) {
             if (type === 'register') { document.getElementById('login-form').style.display = 'none'; document.getElementById('register-form').style.display = 'block'; }
             else { document.getElementById('login-form').style.display = 'block'; document.getElementById('register-form').style.display = 'none'; }
-            let msgBox = document.getElementById('msg');
-            if(msgBox) msgBox.innerText = "";
+            let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = "";
         }
 
         function login() {
             let u = document.getElementById('user').value; let p = document.getElementById('pass').value;
             fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) })
             .then(res => res.json()).then(data => { 
-                let msgBox = document.getElementById('msg');
-                if(msgBox) msgBox.innerText = data.message; 
+                let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = data.message; 
                 if (data.status === "SUCCESS") { setTimeout(() => { location.reload(); }, 1000); } 
             });
         }
@@ -344,11 +347,7 @@
                     document.getElementById('register-form').style.display = 'none'; 
                     document.getElementById('processing-form').style.display = 'block'; 
                     checkApprovalInterval = setInterval(pollApprovalStatus, 2000); 
-                }
-                else { 
-                    let msgBox = document.getElementById('msg');
-                    if(msgBox) msgBox.innerText = data.message; 
-                }
+                } else { let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = data.message; }
             });
         }
 
@@ -366,8 +365,12 @@
         }
 
         function connectGoogle() {
-            let btn = document.getElementById('yt-connect-btn'); if(btn) btn.innerText = "Connecting...";
-            fetch('/customer/auth_youtube', { method: 'POST' }).then(res => res.json()).then(data => { location.reload(); });
+            let btn = document.getElementById('yt-connect-btn'); if(btn) btn.innerText = "Connecting Google...";
+            fetch('/customer/auth_youtube', { method: 'POST' })
+            .then(res => res.json()).then(data => { 
+                if (data.status === "SUCCESS") { window.location.href = data.redirect_url; } 
+                else { alert("OAuth Error: " + data.message); if(btn) btn.innerText = "🔗 LINK YOUTUBE VIA GOOGLE"; }
+            }).catch(err => { alert("Server Error!"); if(btn) btn.innerText = "🔗 LINK YOUTUBE VIA GOOGLE"; });
         }
 
         function deleteCustomer(phoneNum) {
@@ -383,26 +386,37 @@
         }
 
         function setCategory() {
-            let cat = document.getElementById('cat-search').value.trim();
-            if (!cat) { alert("Please select a category!"); return; }
+            let cat = document.getElementById('cat-search').value.trim(); if (!cat) { alert("Please select a category!"); return; }
             fetch('/customer/set_category', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: cat }) })
             .then(res => res.json()).then(data => { location.reload(); });
         }
 
+        // ৩-লাইন অপশন এর OK বাটনে ক্লিক করলে নোটিফিকেশনটি সরানোর জাভাস্ক্রিপ্ট
+        function dismissThirtyDays(phoneNum) {
+            fetch('/admin/dismiss_thirty_days', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_user: phoneNum })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "SUCCESS") {
+                    let alertRow = document.getElementById('top-alert-' + phoneNum);
+                    if(alertRow) alertRow.style.display = 'none';
+                } else { alert("Error: " + data.message); }
+            }).catch(err => alert("Communication error!"));
+        }
+
         function fetchLiveAiTracking() {
-            // Check if live tracker elements exist in DOM before updating to prevent errors
             if (document.getElementById('live-topic')) {
-                fetch('/get_live_ai_data')
-                .then(res => res.json())
-                .then(data => {
+                fetch('/get_live_ai_data').then(res => res.json()).then(data => {
                     document.getElementById('live-topic').innerText = data.topic || "Generating...";
                     document.getElementById('live-title').innerText = data.title || "Analyzing...";
                     document.getElementById('live-desc').innerText = data.desc_thumb || "Processing...";
                     document.getElementById('live-length').innerText = data.length || "Calculating...";
                     document.getElementById('live-time').innerText = data.upload_time || "Analyzing traffic...";
                     document.getElementById('live-status').innerText = data.status || "AI BOT WORKING...";
-                })
-                .catch(err => console.log("Live tracker sync waiting for category setup..."));
+                }).catch(err => console.log("Waiting for niche context..."));
             }
         }
 
