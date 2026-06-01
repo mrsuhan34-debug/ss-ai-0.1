@@ -6,13 +6,6 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-# .env ফাইল থেকে ডেটা রিড করার জন্য (লোকাল টেস্টিংয়ের সুবিধার্থে)
-try:
-    from dotenv import load_model
-    load_model()
-except Exception:
-    pass
-
 app = Flask(__name__)
 
 # সেটিং সিকিউর কি এবং সেশন লাইফটাইম
@@ -23,8 +16,15 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 
 DB_FILE = "users_data.json"
 
+# রেন্ডারের লাইভ ডোমেন বা লোকালহোস্ট ডাইনামিকালি হ্যান্ডেল করার লজিক
+def get_redirect_uri():
+    # রেন্ডার নিজে থেকেই 'RENDER_EXTERNAL_URL' এনভায়রনমেন্ট প্রোভাইড করে
+    render_url = os.environ.get('RENDER_EXTERNAL_URL')
+    if render_url:
+        return f"{render_url.rstrip('/')}/oauth2callback"
+    return "http://localhost:5000/oauth2callback"
+
 # ================= Google OAuth2 কনফিগারেশন =================
-# কোড এখন সম্পূর্ণ ক্লিন ও সিকিউর, গিটহাব আর কখনো লক করবে না
 GOOGLE_OAUTH_CONFIG = {
     "web": {
         "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
@@ -33,14 +33,11 @@ GOOGLE_OAUTH_CONFIG = {
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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'),
-        "redirect_uris": ["http://localhost:5000/oauth2callback"]
+        "redirect_uris": [get_redirect_uri()]
     }
 }
 
-# YouTube API Read-Only স্কোপ
 YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-
-# লোকালহোস্টে HTTP প্রোটোকল সাপোর্ট করার জন্য ওঅথ এনভায়রনমেন্ট ট্রিপল-পাস
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 
@@ -222,10 +219,11 @@ def auth_youtube():
         return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
     
     try:
+        current_redirect = get_redirect_uri()
         flow = Flow.from_client_config(
             GOOGLE_OAUTH_CONFIG,
             scopes=YOUTUBE_SCOPES,
-            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+            redirect_uri=current_redirect
         )
         
         authorization_url, state = flow.authorization_url(
@@ -247,11 +245,12 @@ def oauth2callback():
         return "Authorization failed: State token missing.", 400
         
     try:
+        current_redirect = get_redirect_uri()
         flow = Flow.from_client_config(
             GOOGLE_OAUTH_CONFIG,
             scopes=YOUTUBE_SCOPES,
             state=session['oauth_state'],
-            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+            redirect_uri=current_redirect
         )
         
         flow.fetch_token(authorization_response=request.url)
@@ -319,7 +318,7 @@ def get_live_ai_data():
     if "cartoon" in category or "animation" in category:
         topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
         titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+        descs = ["Description: আজ রূপনগরের ஜাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
         lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
     elif "documentary" in category or "mystery" in category:
         topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
@@ -367,7 +366,7 @@ def get_live_ai_data():
         descs = ["Description: কম টাকায় লাভজনক ব্যবসার আদেশ। Thumbnail: Business Success Frame Ready", "Description: অনলাইন ব্যবসার সম্পূর্ণ গাইড। Thumbnail: E-commerce Dashboard Loaded", "Description: ফ্রিল্যান্সিং শুরু করার গাইড। Thumbnail: Laptop Money Stack Rendered"]
         lengths = ["15 Minutes 00 Seconds", "12 Minutes 30 Seconds", "20 Minutes 00 Seconds"]
     elif "kids" in category or "rhyme" in category or "children" in category:
-        topics = ["বাংলা ছড়া - আম পাকা জাম পাকা", "শিশুদের জন্য নতুন বাংলা ছড়া ২০২৬", "রীন দুনিয়া শিশুদের শেখার গান"]
+        topics = ["বাংলা ছড়া - আম পাকা জাম পাকা", "শিশুদের জন্য নতুন বাংলা ছড়া ২০২৬", "রঙিন দুনিয়া শিশুদের শেখার গান"]
         titles = ["আম পাকা জাম পাকা | Bangla Rhymes For Kids 2026", "নতুন বাংলা ছড়া | New Bangla Kids Song 2026", "রঙিন দুনিয়া | Colorful Kids Learning Video Bangla"]
         descs = ["Description: শিশুদের জন্য মজার বাংলা ছড়া। Thumbnail: Colorful Cartoon Kids Ready", "Description: নতুন বাংলা ছড়ার সংকলন। Thumbnail: Animated Kids Frame Loaded", "Description: শিশুদের শেখার রঙিন ভিডিও। Thumbnail: Rainbow Learning Rendered"]
         lengths = ["08 Minutes 00 Seconds", "10 Minutes 15 Seconds", "07 Minutes 30 Seconds"]
@@ -459,5 +458,4 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    # লোকাল রান-টাইম ডিফেন্স
     app.run(host='0.0.0.0', port=5000, debug=True)
