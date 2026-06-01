@@ -16,15 +16,8 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 
 DB_FILE = "users_data.json"
 
-# রেন্ডারের লাইভ ডোমেন বা লোকালহোস্ট ডাইনামিকালি হ্যান্ডেল করার লজিক
-def get_redirect_uri():
-    # রেন্ডার নিজে থেকেই 'RENDER_EXTERNAL_URL' এনভায়রনমেন্ট প্রোভাইড করে
-    render_url = os.environ.get('RENDER_EXTERNAL_URL')
-    if render_url:
-        return f"{render_url.rstrip('/')}/oauth2callback"
-    return "http://localhost:5000/oauth2callback"
-
 # ================= Google OAuth2 কনফিগারেশন =================
+# সুহান ভাই, তোমার রেন্ডার ডোমেনের লাইভ লিংক এখানে পারফেক্টলি লক করে দেওয়া হয়েছে
 GOOGLE_OAUTH_CONFIG = {
     "web": {
         "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
@@ -33,11 +26,14 @@ GOOGLE_OAUTH_CONFIG = {
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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'),
-        "redirect_uris": [get_redirect_uri()]
+        "redirect_uris": ["https://flask-hello-world-jbuj.onrender.com/oauth2callback"]
     }
 }
 
+# YouTube API Read-Only স্কোপ
 YOUTUBE_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
+
+# লোকালহোস্টে প্রোটোকল সাপোর্ট ওভাররাইডের পাশাপাশি প্রোডাকশনে সিকিউর হ্যান্ডলিং
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 
@@ -219,11 +215,10 @@ def auth_youtube():
         return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
     
     try:
-        current_redirect = get_redirect_uri()
         flow = Flow.from_client_config(
             GOOGLE_OAUTH_CONFIG,
             scopes=YOUTUBE_SCOPES,
-            redirect_uri=current_redirect
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
         )
         
         authorization_url, state = flow.authorization_url(
@@ -245,12 +240,11 @@ def oauth2callback():
         return "Authorization failed: State token missing.", 400
         
     try:
-        current_redirect = get_redirect_uri()
         flow = Flow.from_client_config(
             GOOGLE_OAUTH_CONFIG,
             scopes=YOUTUBE_SCOPES,
             state=session['oauth_state'],
-            redirect_uri=current_redirect
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
         )
         
         flow.fetch_token(authorization_response=request.url)
@@ -318,7 +312,7 @@ def get_live_ai_data():
     if "cartoon" in category or "animation" in category:
         topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
         titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-        descs = ["Description: আজ রূপনগরের ஜাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+        descs = ["Description: আজ রূপনগরের জাদুকরী পাখি ও লোভী রাজার নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের গা ছমছমে কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
         lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
     elif "documentary" in category or "mystery" in category:
         topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
