@@ -17,15 +17,15 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 DB_FILE = "users_data.json"
 
 # ================= Google OAuth2 কনফিগারেশন =================
-# সুহান ভাই, ওঅথ বাটন কাজ না করার সমস্যাটি এখানে পুরোপুরি ফিক্সড
+# সুহান ভাই, এখানে ডাইনামিক এবং ডিরেক্ট ফলব্যাক দুটোর লজিকই একসাথে টাইট করে দেওয়া হয়েছে
 GOOGLE_OAUTH_CONFIG = {
     "web": {
-        "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com'),
+        "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com').strip(),
         "project_id": "ss-ai-cartoon-saas",
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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'),
+        "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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').strip(),
         "redirect_uris": ["https://flask-hello-world-jbuj.onrender.com/oauth2callback"]
     }
 }
@@ -294,7 +294,7 @@ def set_category():
     return jsonify({"status": "ERROR"})
 
 
-# ================= ৩-লাইন অপশন হ্যান্ডলিং রুট =================
+# ================= ৩-লাইন অপশন নোটিফিকেশন হ্যান্ডলিং রুট =================
 @app.route('/admin/dismiss_thirty_days', methods=['POST'])
 def dismiss_thirty_days():
     if 'username' not in session or session.get('role') != 'admin':
@@ -356,7 +356,7 @@ def get_live_ai_data():
     elif "travel" in category or "vlog" in category:
         topics = ["বাংলাদেশের অজানা ১০টি সুন্দর জায়গা", "সুন্দরবনের গভীরে একদিন", "কক্সবাজার থেকে সেন্টমার্টিন নৌকা ভ্রমণ"]
         titles = ["বাংলাদেশের লুকানো সৌন্দর্য | Hidden Beauty of Bangladesh 2026", "সুন্দরবনে বাঘের সাথে! | Sundarban Travel Vlog Bangla", "সেন্টমার্টিন দ্বীপ ভ্রমণ | Saint Martin Island Travel Vlog"]
-        descs = ["Description: বাংলাদেশের অজানা সুন্দর স্থানগুলো। Thumbnail: Aerial Bangladesh View Ready", "Description: সুন্দরবনের অ্যাডভেঞ্চার ভ্রমণ। Thumbnail: Mangrove Forest Frame Loaded", "Description: সেন্টমার্টিন দ্বীপের ট্রাভেল ভ্লগ। Thumbnail: Blue Ocean Island Rendered"]
+        descs = ["Description: বাংলাদেশের অজানা সুন্দর স্থানগুলো। Thumbnail: Aerial Bangladesh View Ready", "Description: सुंदरবনের অ্যাডভেঞ্চার ভ্রমণ। Thumbnail: Mangrove Forest Frame Loaded", "Description: সেন্টমার্টিন দ্বীপের ট্রাভেল ভ্লগ। Thumbnail: Blue Ocean Island Rendered"]
         lengths = ["18 Minutes 00 Seconds", "22 Minutes 15 Seconds", "19 Minutes 45 Seconds"]
     elif "tech" in category or "review" in category or "gadget" in category:
         topics = ["Top 5 Budget Smartphones of 2026 Under 15000 Taka", "Best AI Tools That Will Replace Your Job in 2026", "iPhone vs Android: Which is Better in 2026?"]
