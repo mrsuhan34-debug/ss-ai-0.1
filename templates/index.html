@@ -31,9 +31,9 @@
         .client-card { background: #222; padding: 15px; margin: 15px 0; border-radius: 8px; text-align: left; border: 1px solid #333; }
         .action-btn { padding: 8px 14px; font-size: 12px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; margin-right: 5px; color: white; transition: 0.2s; }
         .btn-kick { background: #ff4444; }
-        .btn-kick:hover { background: #cc0000; box-shadow: 0 0 8px rgba(255,68,68,0.3); }
+        .btn-kick:hover { background: #cc0000; }
         .btn-block { background: #ffaa00; color: black; }
-        .btn-block:hover { background: #cc8800; box-shadow: 0 0 8px rgba(255,170,0,0.3); }
+        .btn-block:hover { background: #cc8800; }
         .btn-approve { background: #00cc66; color: white; }
         .btn-reject { background: #ff4444; color: white; }
         .info-row { font-size: 13px; color: #aaa; margin: 4px 0; }
@@ -50,9 +50,7 @@
         .tracker-value { color: #fff; font-weight: 500; }
         .live-pulse { width: 8px; height: 8px; background: #00ffcc; border-radius: 50%; display: inline-block; margin-right: 6px; box-shadow: 0 0 8px #00ffcc; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.6; } }
-        
-        /* ৩-লাইন নোটিফিকেশন জোনের নতুন স্টাইল */
-        .notification-zone { background: #1f1f2e; border: 1px solid #ffaa00; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; box-shadow: 0 0 10px rgba(255,170,0,0.1); }
+        .notification-zone { background: #1f1f2e; border: 1px solid #ffaa00; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; }
         .notification-item { display: flex; justify-content: space-between; align-items: center; background: #17171f; padding: 10px 15px; margin-top: 8px; border-radius: 6px; border-left: 4px solid #ffaa00; }
     </style>
 </head>
@@ -112,8 +110,6 @@
             <p style="font-size: 12px; color: #aaa;">💡 Click <b>☰ Menu</b> to open Active Customers List.</p>
             <hr style="border-color: #333;">
 
-            <!-- সুহান ভাই, কাস্টমারের ৩০ দিন হয়ে গেলে উপরে শো করার নতুন অপশন জোন -->
-            {% set expired_count = lstrip %}
             {% for phone, info in customers.items() %}
                 {% if info.is_expired and not info.thirty_days_dismissed %}
                     {% if loop.first %}
@@ -265,7 +261,7 @@
                     </div>
                 </div>
             {% endif %}
-            <div id="customer-msg" style="margin-top: 15px; color: #ffcc00; font-weight: bold;"></div>
+            <div id="msg" style="margin-top: 15px; color: #ffcc00; font-weight: bold;"></div>
         {% endif %}
     </div>
 
@@ -299,10 +295,7 @@
                     let div = document.createElement('div');
                     div.className = 'suggestion-item';
                     div.innerText = cat;
-                    div.onclick = function () {
-                        document.getElementById('cat-search').value = cat;
-                        box.style.display = 'none';
-                    };
+                    div.onclick = function () { document.getElementById('cat-search').value = cat; box.style.display = 'none'; };
                     box.appendChild(div);
                 });
             } else { box.style.display = 'none'; }
@@ -324,15 +317,15 @@
         function toggleForm(type) {
             if (type === 'register') { document.getElementById('login-form').style.display = 'none'; document.getElementById('register-form').style.display = 'block'; }
             else { document.getElementById('login-form').style.display = 'block'; document.getElementById('register-form').style.display = 'none'; }
-            let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = "";
+            let msgBox = document.getElementById('msg'); if (msgBox) msgBox.innerText = "";
         }
 
         function login() {
             let u = document.getElementById('user').value; let p = document.getElementById('pass').value;
             fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) })
-            .then(res => res.json()).then(data => { 
-                let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = data.message; 
-                if (data.status === "SUCCESS") { setTimeout(() => { location.reload(); }, 1000); } 
+            .then(res => res.json()).then(data => {
+                let msgBox = document.getElementById('msg'); if (msgBox) msgBox.innerText = data.message;
+                if (data.status === "SUCCESS") { setTimeout(() => { location.reload(); }, 1000); }
             });
         }
 
@@ -343,11 +336,11 @@
             globalPendingPhone = ph;
             fetch('/register_request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n, phone: ph, gmail: gm, password: pa }) })
             .then(res => res.json()).then(data => {
-                if (data.status === "SUCCESS") { 
-                    document.getElementById('register-form').style.display = 'none'; 
-                    document.getElementById('processing-form').style.display = 'block'; 
-                    checkApprovalInterval = setInterval(pollApprovalStatus, 2000); 
-                } else { let msgBox = document.getElementById('msg'); if(msgBox) msgBox.innerText = data.message; }
+                if (data.status === "SUCCESS") {
+                    document.getElementById('register-form').style.display = 'none';
+                    document.getElementById('processing-form').style.display = 'block';
+                    checkApprovalInterval = setInterval(pollApprovalStatus, 2000);
+                } else { let msgBox = document.getElementById('msg'); if (msgBox) msgBox.innerText = data.message; }
             });
         }
 
@@ -365,12 +358,12 @@
         }
 
         function connectGoogle() {
-            let btn = document.getElementById('yt-connect-btn'); if(btn) btn.innerText = "Connecting Google...";
+            let btn = document.getElementById('yt-connect-btn');
+            if (btn) btn.innerText = "Connecting...";
             fetch('/customer/auth_youtube', { method: 'POST' })
-            .then(res => res.json()).then(data => { 
-                if (data.status === "SUCCESS") { window.location.href = data.redirect_url; } 
-                else { alert("OAuth Error: " + data.message); if(btn) btn.innerText = "🔗 LINK YOUTUBE VIA GOOGLE"; }
-            }).catch(err => { alert("Server Error!"); if(btn) btn.innerText = "🔗 LINK YOUTUBE VIA GOOGLE"; });
+            .then(res => res.json())
+            .then(data => { location.reload(); })
+            .catch(err => { location.reload(); });
         }
 
         function deleteCustomer(phoneNum) {
@@ -386,25 +379,20 @@
         }
 
         function setCategory() {
-            let cat = document.getElementById('cat-search').value.trim(); if (!cat) { alert("Please select a category!"); return; }
+            let cat = document.getElementById('cat-search').value.trim();
+            if (!cat) { alert("Please select a category!"); return; }
             fetch('/customer/set_category', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: cat }) })
             .then(res => res.json()).then(data => { location.reload(); });
         }
 
-        // ৩-লাইন অপশন এর OK বাটনে ক্লিক করলে নোটিফিকেশনটি সরানোর জাভাস্ক্রিপ্ট
         function dismissThirtyDays(phoneNum) {
-            fetch('/admin/dismiss_thirty_days', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ target_user: phoneNum })
-            })
-            .then(res => res.json())
-            .then(data => {
+            fetch('/admin/dismiss_thirty_days', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_user: phoneNum }) })
+            .then(res => res.json()).then(data => {
                 if (data.status === "SUCCESS") {
                     let alertRow = document.getElementById('top-alert-' + phoneNum);
-                    if(alertRow) alertRow.style.display = 'none';
-                } else { alert("Error: " + data.message); }
-            }).catch(err => alert("Communication error!"));
+                    if (alertRow) alertRow.style.display = 'none';
+                }
+            });
         }
 
         function fetchLiveAiTracking() {
@@ -414,9 +402,9 @@
                     document.getElementById('live-title').innerText = data.title || "Analyzing...";
                     document.getElementById('live-desc').innerText = data.desc_thumb || "Processing...";
                     document.getElementById('live-length').innerText = data.length || "Calculating...";
-                    document.getElementById('live-time').innerText = data.upload_time || "Analyzing traffic...";
+                    document.getElementById('live-time').innerText = data.upload_time || "Analyzing...";
                     document.getElementById('live-status').innerText = data.status || "AI BOT WORKING...";
-                }).catch(err => console.log("Waiting for niche context..."));
+                }).catch(err => console.log("Waiting..."));
             }
         }
 
