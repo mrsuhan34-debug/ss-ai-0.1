@@ -1,6 +1,8 @@
 import os
 import json
 import random
+import threading
+import urllib.request
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
@@ -14,6 +16,19 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 
 DB_FILE = "users_data.json"
+
+def keep_alive():
+    import time
+    time.sleep(60)
+    while True:
+        try:
+            urllib.request.urlopen("https://flask-hello-world-jbuj.onrender.com/ping")
+        except:
+            pass
+        time.sleep(600)
+
+t = threading.Thread(target=keep_alive, daemon=True)
+t.start()
 
 def load_db():
     if os.path.exists(DB_FILE):
@@ -68,6 +83,10 @@ def get_all_customers():
             "thirty_days_dismissed": u.get("thirty_days_dismissed", False)
         }
     return customers
+
+@app.route('/ping')
+def ping():
+    return "OK", 200
 
 @app.route('/')
 def index():
@@ -169,17 +188,18 @@ def check_approval_status():
 
 @app.route('/customer/auth_youtube', methods=['POST'])
 def auth_youtube():
-    if 'username' not in session or session.get('role') != 'customer':
+    if 'username' not in session:
         return jsonify({"status": "ERROR"})
     users_db = load_db()
     username = session['username']
-    users_db[username]['youtube_linked'] = True
-    save_db(users_db)
+    if username in users_db:
+        users_db[username]['youtube_linked'] = True
+        save_db(users_db)
     return jsonify({"status": "SUCCESS"})
 
 @app.route('/customer/set_category', methods=['POST'])
 def set_category():
-    if 'username' not in session or session.get('role') != 'customer':
+    if 'username' not in session:
         return jsonify({"status": "ERROR"})
     try:
         selected_cat = request.json.get('category', '').strip()
@@ -255,13 +275,14 @@ def dismiss_thirty_days():
 
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
-    if 'username' not in session or session.get('role') != 'customer':
+    if 'username' not in session:
         return jsonify({"topic": "N/A", "title": "N/A", "desc_thumb": "N/A", "length": "N/A", "upload_time": "N/A", "status": "OFFLINE"})
     users_db = load_db()
-    user_info = users_db.get(session['username'], {})
+    username = session['username']
+    user_info = users_db.get(username, {})
     category = user_info.get('category', '').lower()
     current_time = datetime.now()
-    random.seed(int(user_info.get('password', '123').encode().hex()) + current_time.day)
+    random.seed(int(str(user_info.get('password', '123')).encode().hex()) + current_time.day)
     hours_to_add = random.choice([3, 4, 5])
     minutes_to_add = random.choice([0, 15, 30, 45])
     traffic_time = (current_time + timedelta(hours=hours_to_add)).replace(minute=minutes_to_add)
