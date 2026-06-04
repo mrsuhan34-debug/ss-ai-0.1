@@ -395,19 +395,27 @@
             });
         }
 
-        function fetchLiveAiTracking() {
-            if (document.getElementById('live-topic')) {
-                fetch('/get_live_ai_data').then(res => res.json()).then(data => {
-                    document.getElementById('live-topic').innerText = data.topic || "Generating...";
-                    document.getElementById('live-title').innerText = data.title || "Analyzing...";
-                    document.getElementById('live-desc').innerText = data.desc_thumb || "Processing...";
-                    document.getElementById('live-length').innerText = data.length || "Calculating...";
-                    document.getElementById('live-time').innerText = data.upload_time || "Analyzing...";
-                    document.getElementById('live-status').innerText = data.status || "AI BOT WORKING...";
-                }).catch(err => console.log("Waiting..."));
+       function fetchLiveAiTracking() {
+    if (document.getElementById('live-topic')) {
+        fetch('/get_live_ai_data')
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.topic && data.topic !== "N/A") {
+                document.getElementById('live-topic').innerText = data.topic;
+                document.getElementById('live-title').innerText = data.title;
+                document.getElementById('live-desc').innerText = data.desc_thumb;
+                document.getElementById('live-length').innerText = data.length;
+                document.getElementById('live-time').innerText = data.upload_time;
+                document.getElementById('live-status').innerText = data.status;
+            } else {
+                setTimeout(fetchLiveAiTracking, 3000);
             }
-        }
-
+        })
+        .catch(err => {
+            setTimeout(fetchLiveAiTracking, 3000);
+        });
+    }
+}
         setInterval(fetchLiveAiTracking, 5000);
         window.onload = fetchLiveAiTracking;
     </script>
