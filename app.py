@@ -1,5 +1,4 @@
 import os
-import json
 import random
 import threading
 import urllib.request
@@ -18,7 +17,6 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://mrsuhan34_db_user:CC1KshAyEZQX3kwV@cluster0.eisaj7e.mongodb.net/')
-
 client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
 db = client['ss_ai_cartoon_database']
 users_collection = db['users_data']
@@ -269,37 +267,30 @@ def get_live_ai_data():
         user_info = users_collection.find_one({"_id": str(session['username']).strip()})
         if not user_info:
             return jsonify({"topic": "N/A", "title": "N/A", "desc_thumb": "N/A", "length": "N/A", "upload_time": "N/A", "status": "OFFLINE"})
+
         category = str(user_info.get('category', '')).lower()
         current_time = datetime.now()
+        current_hour = current_time.hour
+        current_minute = current_time.minute
+
         try:
-    random.seed(int(str(user_info.get('_id', '123')).strip()) + current_time.day)
-except:
-    random.seed(current_time.day)
+            random.seed(int(str(user_info.get('_id', '123')).strip()) + current_time.day)
+        except:
+            random.seed(current_time.day)
 
-current_hour = current_time.hour
+        min_future_minutes = current_hour * 60 + current_minute + 30
+        time_slots = [7*60, 8*60, 9*60, 10*60, 11*60, 12*60, 13*60, 14*60, 15*60, 16*60, 17*60, 18*60, 19*60, 20*60, 21*60, 22*60]
+        future_slots = [s for s in time_slots if s > min_future_minutes]
 
-if current_hour < 6:
-    best_hour = random.choice([7, 8, 9])
-elif current_hour < 10:
-    best_hour = random.choice([current_hour + 1, current_hour + 2])
-elif current_hour < 14:
-    best_hour = random.choice([current_hour + 1, current_hour + 2, 15])
-elif current_hour < 18:
-    best_hour = random.choice([current_hour + 1, 19, 20])
-elif current_hour < 21:
-    best_hour = random.choice([current_hour + 1, 22])
-else:
-    best_hour = random.choice([7, 8, 9])
-
-best_minute = random.choice([0, 15, 30, 45])
-
-if best_hour >= 24:
-    best_hour = best_hour - 24
-    traffic_time = (current_time + timedelta(days=1)).replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
-    best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
-else:
-    traffic_time = current_time.replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
-    best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
+        if future_slots:
+            best_slot = random.choice(future_slots[:3])
+            best_hour = best_slot // 60
+            best_minute = random.choice([0, 15, 30, 45])
+            traffic_time = current_time.replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
+            best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
+        else:
+            traffic_time = (current_time + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+            best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
 
         if "cartoon" in category or "animation" in category:
             topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
@@ -356,7 +347,7 @@ else:
             titles = ["আম পাকা জাম পাকা | Bangla Rhymes For Kids 2026", "নতুন বাংলা ছড়া | New Bangla Kids Song 2026", "রঙিন দুনিয়া | Colorful Kids Learning Video Bangla"]
             descs = ["Description: শিশুদের মজার বাংলা ছড়া। Thumbnail: Colorful Cartoon Kids Ready", "Description: নতুন বাংলা ছড়া। Thumbnail: Animated Kids Frame Loaded", "Description: শিশুদের শেখার ভিডিও। Thumbnail: Rainbow Learning Rendered"]
             lengths = ["08 Minutes 00 Seconds", "10 Minutes 15 Seconds", "07 Minutes 30 Seconds"]
-        elif "gaming" in category or "esports" in category:
+        elif "gaming" in category or "esports" in category or "free fire" in category or "freefire" in category or "trending" in category:
             topics = ["Free Fire Best Character Combination 2026", "Top 10 Mobile Games Bangladesh 2026", "BGMI vs Free Fire: Which is Better?"]
             titles = ["Free Fire Best Character 2026 | Bangla Gaming", "Top 10 Mobile Games 2026 | Bangladesh Gamer", "BGMI vs Free Fire Ultimate Comparison | Bangla"]
             descs = ["Description: Free Fire character guide. Thumbnail: Gaming Action Frame Ready", "Description: Top mobile games review. Thumbnail: Gaming Collage Loaded", "Description: BGMI vs Free Fire comparison. Thumbnail: Split Screen Gaming Rendered"]
