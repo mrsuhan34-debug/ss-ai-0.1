@@ -13,7 +13,7 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 
-# সেটিং সিকিউর কি এবং সেশন লাইফটাইম (ব্রাউজারে সেশন এবং লগইন একদম স্থায়ী থাকবে)
+# সেটিং সিকিউর কি এবং সেশন লাইফটাইম
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'suhan_saas_ultra_secure_permanent_key_2026')
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
@@ -55,7 +55,6 @@ GOOGLE_OAUTH_CONFIG = {
     }
 }
 
-# কাস্টমারদের চ্যানেলে ফুল অটোমেটিক আপলোড স্কোপ এখানে লকিং করা আছে
 YOUTUBE_SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/youtube.upload"
@@ -63,7 +62,7 @@ YOUTUBE_SCOPES = [
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# ================= সেফ সেলফ-পিং মেকানিজম =================
+# ================= সেফ সেলф-পিং মেকানিজম =================
 def keep_alive():
     import time
     time.sleep(60)
@@ -213,7 +212,6 @@ def check_approval_status():
         print(f"Error: {e}")
     return jsonify({"status": "PENDING"})
 
-# ================= YouTube 🔐 OAuth2 রুট সমূহ (Full upload integration) =================
 @app.route('/customer/auth_youtube', methods=['POST'])
 def auth_youtube():
     if 'username' not in session or session.get('role') != 'customer':
@@ -259,7 +257,6 @@ def oauth2callback():
         channel_name = channel_info.get('title', 'Unknown Channel')
         username = str(session.get('username')).strip()
         
-        # ওঅথ ক্রেডেনশিয়ালস টোকেন ডেটা সহ মঙ্গোডিবি ক্লাউডে সেভ রাখা হচ্ছে চিরদিনের জন্য
         users_collection.update_one(
             {"_id": username},
             {
@@ -286,7 +283,7 @@ def set_category():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
-# ================= কাস্টমারদের চ্যানেলে রিয়াল ভিডিও আপলোড ইঞ্জিন =================
+# ================= 🚀 কাস্টমারদের চ্যানেলে ফুল অটো-পাইলট ভিডিও আপলোড ইঞ্জিন =================
 @app.route('/customer/upload_video', methods=['POST'])
 def upload_video():
     if 'username' not in session or session.get('role') != 'customer':
@@ -303,7 +300,6 @@ def upload_video():
         token_data = json.loads(user_info.get('youtube_token'))
         credentials = Credentials.from_authorized_user_info(token_data, YOUTUBE_SCOPES)
         
-        # টোকেন এক্সপায়ার হলে ব্যাকগ্রাউন্ড রিফ্রেশ মেকানিজম
         if credentials.expired and credentials.refresh_token:
             from google.auth.transport.requests import Request
             credentials.refresh(Request())
@@ -311,19 +307,20 @@ def upload_video():
             
         youtube = build('youtube', 'v3', credentials=credentials)
         
-        # তোমার রেন্ডার আউটপুট ভিডিও ডিরেক্টরি পাথ
-        video_file_path = "sample_output.mp4"
+        # 💡 সুহান ভাই, এখানে তোমার জেনারেট হওয়া আসল ভিডিওর নাম (যেমন: output.mp4) পরিবর্তন করতে পারো
+        video_file_path = "output.mp4"
         if not os.path.exists(video_file_path):
+            # ফাইল না থাকলে টেস্ট করার জন্য সাথে সাথে ১টা ফাইল ব্যাকগ্রাউন্ডে রেডি করে নেবে
             with open(video_file_path, "wb") as f:
                 f.write(b"\x00\x00\x00\x18ftypmp42")
 
-        # লাইভ এআই ডেটা রুট থেকে ইনস্ট্যান্ট জেনারেটেড কনটেন্ট মেটাডেটা নেওয়া হচ্ছে
+        # লাইভ এআই ট্র্যাকিং ডাটাবেস থেকে বর্তমান রিয়্যাল-টাইম টাইটেল মেটাডেটা নেওয়া হচ্ছে
         ai_data_response = get_live_ai_data()
         ai_data = json.loads(ai_data_response.get_data(as_text=True))
         
         body = {
             'snippet': {
-                'title': ai_data.get('title', 'SS AI Auto Generated Content'),
+                'title': ai_data.get('title', 'SS AI Auto Target Upload'),
                 'description': ai_data.get('desc_thumb', 'Uploaded Automatically via SS AI SaaS Platform Engine.'),
                 'tags': ['animation', 'cartoon', 'bangla', 'gaming', '2026'],
                 'categoryId': '24'
@@ -399,7 +396,7 @@ def dismiss_thirty_days():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
-# ================= লাইভ এআই ড্যাশবোর্ড জেনারেটর (তোমার কাস্টম ফিউচার মেটা ডাটা লজিক সহ) =================
+# ================= লাইভ এআই ড্যাশবোর্ড জেনারেটর (সব ক্যাটাগরিসহ ফিক্সড) =================
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
     if 'username' not in session:
@@ -436,7 +433,7 @@ def get_live_ai_data():
         if "cartoon" in category or "animation" in category:
             topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
             titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: भুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল ٹুনটুনি। Thumbnail: AI Frame Rendered"]
             lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
         elif "documentary" in category or "mystery" in category:
             topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
@@ -456,7 +453,7 @@ def get_live_ai_data():
         elif "cooking" in category or "recipe" in category or "food" in category:
             topics = ["বাংলাদেশের সেরা ১০টি ঐতিহ্যবাহী রেসিপি", "মাত্র ১৫ মিনিটে রান্না করুন সুস্বাদু ভর্তা", "রমজানের বিশেষ ইফতার রেসিপি ২০২৬"]
             titles = ["বাংলার ঐতিহ্যবাহী রান্না | Traditional Bangla Recipe 2026", "১৫ মিনিটে সেরা ভর্তা রেসিপি | Quick Bangla Cooking", "রমজানের সেরা ইফতার | Special Iftar Recipe Bangla"]
-            descs = ["Description: বাংলাদেশের রান্নার রেসিপি। Thumbnail: Food HD Close-up Ready", "Description: দ্রুত ভর্তা রেসিপি। Thumbnail: Cooking Step Frame Loaded", "Description: রমজানের ইফতার। Thumbnail: Iftar Spread Rendered"]
+            descs = ["Description: বাংলাদেশের রান্নার রেসিপি। Thumbnail: Food HD Close-up Ready", "Description: দ্রুত ভর্তা রেসিপি। Thumbnail: Cooking Step Frame Loaded", "Description: रमজানের ইফতার। Thumbnail: Iftar Spread Rendered"]
             lengths = ["14 Minutes 20 Seconds", "10 Minutes 00 Seconds", "16 Minutes 30 Seconds"]
         elif "travel" in category or "vlog" in category:
             topics = ["বাংলাদেশের অজানা ১০টি সুন্দর জায়গা", "সুন্দরবনের গভীরে একদিন", "কক্সবাজার থেকে সেন্টমার্টিন নৌকা ভ্রমণ"]
