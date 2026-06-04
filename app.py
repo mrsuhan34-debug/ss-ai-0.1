@@ -13,7 +13,6 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 
-# সেটিং সিকিউর কি এবং সেশন লাইফটাইম
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'suhan_saas_ultra_secure_permanent_key_2026')
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
@@ -21,7 +20,6 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 
-# ================= MongoDB ক্লাউড ডাটাবেস কানেকশন =================
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://mrsuhan34_db_user:CC1KshAyEZQX3kwV@cluster0.eisaj7e.mongodb.net/')
 client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
 db = client['ss_ai_cartoon_database']
@@ -42,7 +40,6 @@ def init_db_admin():
 
 init_db_admin()
 
-# ================= YouTube API OAuth2 কনফিগারেশন =================
 GOOGLE_OAUTH_CONFIG = {
     "web": {
         "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com').strip(),
@@ -62,7 +59,6 @@ YOUTUBE_SCOPES = [
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# ================= সেফ সেলф-পিং মেকানিজম =================
 def keep_alive():
     import time
     time.sleep(60)
@@ -76,7 +72,6 @@ def keep_alive():
 t = threading.Thread(target=keep_alive, daemon=True)
 t.start()
 
-# ================= ডাটাবেস প্রসেসিং হেল্পারস =================
 def get_all_customers_from_mongo():
     customers = {}
     try:
@@ -111,7 +106,6 @@ def get_all_customers_from_mongo():
         print(f"Error fetching customers: {e}")
     return customers
 
-# ================= রাউটিং লজিক (Routes) =================
 @app.route('/ping')
 def ping():
     return "OK", 200
@@ -245,27 +239,16 @@ def oauth2callback():
         )
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
-        
         youtube = build('youtube', 'v3', credentials=credentials)
         request_api = youtube.channels().list(part="snippet,statistics", mine=True)
         response = request_api.execute()
-        
         if not response.get('items'):
-            return "<h1>Error: No YouTube Channel found on this Google Account!</h1><a href='/'>Go Back</a>"
-            
-        channel_info = response['items'][0]['snippet']
-        channel_name = channel_info.get('title', 'Unknown Channel')
+            return "<h1>Error: No YouTube Channel found!</h1><a href='/'>Go Back</a>"
+        channel_name = response['items'][0]['snippet'].get('title', 'Unknown Channel')
         username = str(session.get('username')).strip()
-        
         users_collection.update_one(
             {"_id": username},
-            {
-                "$set": {
-                    "youtube_linked": True, 
-                    "youtube_token": credentials.to_json(), 
-                    "channel_name": channel_name
-                }
-            }
+            {"$set": {"youtube_linked": True, "youtube_token": credentials.to_json(), "channel_name": channel_name}}
         )
         return redirect(url_for('index'))
     except Exception as e:
@@ -283,66 +266,76 @@ def set_category():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
-# ================= 🚀 কাস্টমারদের চ্যানেলে ফুল অটো-পাইলট ভিডিও আপলোড ইঞ্জিন =================
 @app.route('/customer/upload_video', methods=['POST'])
 def upload_video():
     if 'username' not in session or session.get('role') != 'customer':
         return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
-    
     username = str(session['username']).strip()
     user_info = users_collection.find_one({"_id": username})
-    
     if not user_info or not user_info.get('youtube_linked') or not user_info.get('youtube_token'):
-        return jsonify({"status": "ERROR", "message": "YouTube account not linked or authenticated!"})
-    
+        return jsonify({"status": "ERROR", "message": "YouTube account not linked!"})
     try:
         from google.oauth2.credentials import Credentials
         token_data = json.loads(user_info.get('youtube_token'))
         credentials = Credentials.from_authorized_user_info(token_data, YOUTUBE_SCOPES)
-        
         if credentials.expired and credentials.refresh_token:
             from google.auth.transport.requests import Request
             credentials.refresh(Request())
             users_collection.update_one({"_id": username}, {"$set": {"youtube_token": credentials.to_json()}})
-            
         youtube = build('youtube', 'v3', credentials=credentials)
-        
-        # 💡 সুহান ভাই, এখানে তোমার জেনারেট হওয়া আসল ভিডিওর নাম (যেমন: output.mp4) পরিবর্তন করতে পারো
         video_file_path = "output.mp4"
         if not os.path.exists(video_file_path):
-            # ফাইল না থাকলে টেস্ট করার জন্য সাথে সাথে ১টা ফাইল ব্যাকগ্রাউন্ডে রেডি করে নেবে
             with open(video_file_path, "wb") as f:
                 f.write(b"\x00\x00\x00\x18ftypmp42")
+        category = str(user_info.get('category', '')).lower()
+        current_time = datetime.now()
+        try:
+            random.seed(int(str(user_info.get('_id', '123')).strip()) + current_time.day)
+        except:
+            random.seed(current_time.day)
+        min_future_minutes = current_time.hour * 60 + current_time.minute + 30
+        time_slots = [7*60, 8*60, 9*60, 10*60, 11*60, 12*60, 13*60, 14*60, 15*60, 16*60, 17*60, 18*60, 19*60, 20*60, 21*60, 22*60]
+        future_slots = [s for s in time_slots if s > min_future_minutes]
+        if future_slots:
+            best_slot = random.choice(future_slots[:3])
+            best_hour = best_slot // 60
+            best_minute = random.choice([0, 15, 30, 45])
+            traffic_time = current_time.replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
+            best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
+        else:
+            traffic_time = (current_time + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+            best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
 
-        # লাইভ এআই ট্র্যাকিং ডাটাবেস থেকে বর্তমান রিয়্যাল-টাইম টাইটেল মেটাডেটা নেওয়া হচ্ছে
-        ai_data_response = get_live_ai_data()
-        ai_data = json.loads(ai_data_response.get_data(as_text=True))
-        
+        if "cartoon" in category or "animation" in category:
+            titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
+            descs = ["আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব।", "ভুতুড়ে বিলের গভীর রাতের কার্টুন গল্প।", "চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি।"]
+        elif "gaming" in category or "esports" in category or "free fire" in category or "freefire" in category or "trending" in category:
+            titles = ["Free Fire Best Character 2026 | Bangla Gaming", "Top 10 Mobile Games 2026 | Bangladesh Gamer", "BGMI vs Free Fire Ultimate Comparison | Bangla"]
+            descs = ["Free Fire character guide 2026.", "Top mobile games review Bangladesh.", "BGMI vs Free Fire comparison."]
+        elif "islamic" in category or "motivat" in category or "quran" in category:
+            titles = ["আল্লাহর উপর ভরসা রাখো | Islamic Motivation 2026", "জীবন বদলে যাবে এই ১০টি কথায় | Bangla Islamic Video", "সফলতার রহস্য | Islamic Life Success Story Bangla"]
+            descs = ["ইসলামিক অনুপ্রেরণামূলক ভিডিও।", "ইসলামিক জীবনধারার সেরা উক্তি।", "সফলতার পথে ইসলামিক গাইড।"]
+        else:
+            titles = ["The Future is Here: AI Systems of 2026!", "Faceless YouTube Channel in 24 Hours", "Cinematic Visuals: Topaz AI Tutorial"]
+            descs = ["Complete guide on 2026 AI tools.", "Faceless workflow for viral growth.", "Enhance footage with AI processing."]
+
+        idx = random.randint(0, len(titles) - 1)
         body = {
             'snippet': {
-                'title': ai_data.get('title', 'SS AI Auto Target Upload'),
-                'description': ai_data.get('desc_thumb', 'Uploaded Automatically via SS AI SaaS Platform Engine.'),
-                'tags': ['animation', 'cartoon', 'bangla', 'gaming', '2026'],
+                'title': titles[idx],
+                'description': descs[idx] + f"\n\nUploaded via SS AI SaaS Platform. Best Time: {best_time}",
+                'tags': ['bangla', 'ai', '2026', 'viral'],
                 'categoryId': '24'
             },
-            'status': {
-                'privacyStatus': 'public'
-            }
+            'status': {'privacyStatus': 'public'}
         }
-        
         media = MediaFileUpload(video_file_path, chunksize=-1, resumable=True, mimetype="video/mp4")
         request_upload = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
         response_upload = request_upload.execute()
-        
-        return jsonify({
-            "status": "SUCCESS", 
-            "message": "AI Bot successfully posted the video to your channel!", 
-            "youtube_id": response_upload.get('id')
-        })
+        return jsonify({"status": "SUCCESS", "message": "Video uploaded successfully!", "youtube_id": response_upload.get('id')})
     except Exception as e:
-        return jsonify({"status": "ERROR", "message": f"Upload engine error: {str(e)}"})
+        return jsonify({"status": "ERROR", "message": f"Upload error: {str(e)}"})
 
-# ================= অ্যাডমিন কন্ট্রোল প্যানেল রাউটস =================
 @app.route('/admin/handle_request', methods=['POST'])
 def handle_request():
     if 'username' not in session or session.get('role') != 'admin':
@@ -396,7 +389,6 @@ def dismiss_thirty_days():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
-# ================= লাইভ এআই ড্যাশবোর্ড জেনারেটর (সব ক্যাটাগরিসহ ফিক্সড) =================
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
     if 'username' not in session:
@@ -431,9 +423,9 @@ def get_live_ai_data():
             best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
 
         if "cartoon" in category or "animation" in category:
-            topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
-            titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল ٹুনটুনি। Thumbnail: AI Frame Rendered"]
+            topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
+            titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
+            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
             lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
         elif "documentary" in category or "mystery" in category:
             topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
@@ -453,7 +445,7 @@ def get_live_ai_data():
         elif "cooking" in category or "recipe" in category or "food" in category:
             topics = ["বাংলাদেশের সেরা ১০টি ঐতিহ্যবাহী রেসিপি", "মাত্র ১৫ মিনিটে রান্না করুন সুস্বাদু ভর্তা", "রমজানের বিশেষ ইফতার রেসিপি ২০২৬"]
             titles = ["বাংলার ঐতিহ্যবাহী রান্না | Traditional Bangla Recipe 2026", "১৫ মিনিটে সেরা ভর্তা রেসিপি | Quick Bangla Cooking", "রমজানের সেরা ইফতার | Special Iftar Recipe Bangla"]
-            descs = ["Description: বাংলাদেশের রান্নার রেসিপি। Thumbnail: Food HD Close-up Ready", "Description: দ্রুত ভর্তা রেসিপি। Thumbnail: Cooking Step Frame Loaded", "Description: रमজানের ইফতার। Thumbnail: Iftar Spread Rendered"]
+            descs = ["Description: বাংলাদেশের রান্নার রেসিপি। Thumbnail: Food HD Close-up Ready", "Description: দ্রুত ভর্তা রেসিপি। Thumbnail: Cooking Step Frame Loaded", "Description: রমজানের ইফতার। Thumbnail: Iftar Spread Rendered"]
             lengths = ["14 Minutes 20 Seconds", "10 Minutes 00 Seconds", "16 Minutes 30 Seconds"]
         elif "travel" in category or "vlog" in category:
             topics = ["বাংলাদেশের অজানা ১০টি সুন্দর জায়গা", "সুন্দরবনের গভীরে একদিন", "কক্সবাজার থেকে সেন্টমার্টিন নৌকা ভ্রমণ"]
@@ -471,9 +463,9 @@ def get_live_ai_data():
             descs = ["Description: সকালের স্বাস্থ্যকর অভ্যাস। Thumbnail: Morning Sunrise Fitness Ready", "Description: ডায়াবেটিস টিপস। Thumbnail: Health Infographic Loaded", "Description: দৈনিক ব্যায়ামের গাইড। Thumbnail: Workout Action Frame Rendered"]
             lengths = ["11 Minutes 00 Seconds", "14 Minutes 30 Seconds", "12 Minutes 45 Seconds"]
         elif "horror" in category or "bhoot" in category:
-            topics = ["বাংলাদেশের সবচেয়ে ভয়ংকর ভুতুড়ে বাড়ির গল্প", "রাত ৩টার পর যা ঘটে কেউ বলে না", "সত্যিকারের ভূতের গল্প যা শুনলে ঘুম হারাম হয়"]
-            titles = ["বাংলাদেশের সবচেয়ে ভুতুড়ে বাড়ি! | Real Horror Story Bangla", "রাত ৩টার রহস্য | Midnight Horror Story Bangla 2026", "সত্যিকারের ভূতের গল্প | Real Ghost Story Bangladesh"]
-            descs = ["Description: ভয়ংকর ভুতুড়ে স্থানের গল্প। Thumbnail: Dark Haunted House Ready", "Description: রাতের রহস্যময় ঘটনা। Thumbnail: Horror Night Frame Loaded", "Description: সত্যিকারের ভূতের অভিজ্ঞতা। Thumbnail: Ghost Silhouette Rendered"]
+            topics = ["বাংলাদেশের সবচেয়ে ভয়ংকর ভুতুড়ে বাড়ির গল্প", "রাত ৩টার পর যা ঘটে কেউ বলে না", "সত্যিকারের ভূতের গল্প যা শুনলে ঘুম হারাম হয়"]
+            titles = ["বাংলাদেশের সবচেয়ে ভুতুড়ে বাড়ি! | Real Horror Story Bangla", "রাত ৩টার রহস্য | Midnight Horror Story Bangla 2026", "সত্যিকারের ভূতের গল্প | Real Ghost Story Bangladesh"]
+            descs = ["Description: ভয়ংকর ভুতুড়ে স্থানের গল্প। Thumbnail: Dark Haunted House Ready", "Description: রাতের রহস্যময় ঘটনা। Thumbnail: Horror Night Frame Loaded", "Description: সত্যিকারের ভূতের অভিজ্ঞতা। Thumbnail: Ghost Silhouette Rendered"]
             lengths = ["16 Minutes 00 Seconds", "13 Minutes 30 Seconds", "18 Minutes 45 Seconds"]
         elif "business" in category or "entrepreneur" in category or "finance" in category:
             topics = ["মাত্র ৫০০০ টাকায় শুরু করুন লাভজনক ব্যবসা", "বাংলাদেশে সেরা ১০টি অনলাইন ব্যবসার আইডিয়া ২০২৬", "ফ্রিল্যান্সিং থেকে মাসে লক্ষ টাকা আয়"]
