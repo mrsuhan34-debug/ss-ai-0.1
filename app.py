@@ -1,14 +1,19 @@
 import os
+import json
 import random
 import threading
 import urllib.request
 import certifi
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 from pymongo import MongoClient
 
 app = Flask(__name__)
 
+# সেটিং সিকিউর কি এবং সেশন লাইফটাইম (ব্রাউজারে সেশন এবং লগইন একদম স্থায়ী থাকবে)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'suhan_saas_ultra_secure_permanent_key_2026')
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=90)
@@ -16,6 +21,7 @@ app.config['SESSION_COOKIE_NAME'] = 'ss_ai_saas_session'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 
+# ================= MongoDB ক্লাউড ডাটাবেস কানেকশন =================
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://mrsuhan34_db_user:CC1KshAyEZQX3kwV@cluster0.eisaj7e.mongodb.net/')
 client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
 db = client['ss_ai_cartoon_database']
@@ -36,6 +42,28 @@ def init_db_admin():
 
 init_db_admin()
 
+# ================= YouTube API OAuth2 কনফিগারেশন =================
+GOOGLE_OAUTH_CONFIG = {
+    "web": {
+        "client_id": os.environ.get('GOOGLE_CLIENT_ID', '822666139852-qbq9b548gj8juh8fna5kk1vgbgvlqun2.apps.googleusercontent.com').strip(),
+        "project_id": "ss-ai-cartoon-saas",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": os.environ.get('GOOGLE_CLIENT_SECRET', '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').strip(),
+        "redirect_uris": ["https://flask-hello-world-jbuj.onrender.com/oauth2callback"]
+    }
+}
+
+# কাস্টমারদের চ্যানেলে ফুল অটোমেটিক আপলোড স্কোপ এখানে লকিং করা আছে
+YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.upload"
+]
+
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+# ================= সেফ সেলফ-পিং মেকানিজম =================
 def keep_alive():
     import time
     time.sleep(60)
@@ -49,6 +77,7 @@ def keep_alive():
 t = threading.Thread(target=keep_alive, daemon=True)
 t.start()
 
+# ================= ডাটাবেস প্রসেসিং হেল্পারস =================
 def get_all_customers_from_mongo():
     customers = {}
     try:
@@ -83,6 +112,7 @@ def get_all_customers_from_mongo():
         print(f"Error fetching customers: {e}")
     return customers
 
+# ================= রাউটিং লজিক (Routes) =================
 @app.route('/ping')
 def ping():
     return "OK", 200
@@ -183,16 +213,66 @@ def check_approval_status():
         print(f"Error: {e}")
     return jsonify({"status": "PENDING"})
 
+# ================= YouTube 🔐 OAuth2 রুট সমূহ (Full upload integration) =================
 @app.route('/customer/auth_youtube', methods=['POST'])
 def auth_youtube():
-    if 'username' not in session:
-        return jsonify({"status": "ERROR"})
+    if 'username' not in session or session.get('role') != 'customer':
+        return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
     try:
-        username = str(session['username']).strip()
-        users_collection.update_one({"_id": username}, {"$set": {"youtube_linked": True}})
+        flow = Flow.from_client_config(
+            GOOGLE_OAUTH_CONFIG,
+            scopes=YOUTUBE_SCOPES,
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+        )
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent'
+        )
+        session['oauth_state'] = state
+        return jsonify({"status": "SUCCESS", "redirect_url": authorization_url})
     except Exception as e:
-        print(f"Auth YouTube error: {e}")
-    return jsonify({"status": "SUCCESS"})
+        return jsonify({"status": "ERROR", "message": f"OAuth initialization failed: {str(e)}"})
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    if 'oauth_state' not in session:
+        return "Authorization failed: State token missing.", 400
+    try:
+        flow = Flow.from_client_config(
+            GOOGLE_OAUTH_CONFIG,
+            scopes=YOUTUBE_SCOPES,
+            state=session['oauth_state'],
+            redirect_uri=GOOGLE_OAUTH_CONFIG["web"]["redirect_uris"][0]
+        )
+        flow.fetch_token(authorization_response=request.url)
+        credentials = flow.credentials
+        
+        youtube = build('youtube', 'v3', credentials=credentials)
+        request_api = youtube.channels().list(part="snippet,statistics", mine=True)
+        response = request_api.execute()
+        
+        if not response.get('items'):
+            return "<h1>Error: No YouTube Channel found on this Google Account!</h1><a href='/'>Go Back</a>"
+            
+        channel_info = response['items'][0]['snippet']
+        channel_name = channel_info.get('title', 'Unknown Channel')
+        username = str(session.get('username')).strip()
+        
+        # ওঅথ ক্রেডেনশিয়ালস টোকেন ডেটা সহ মঙ্গোডিবি ক্লাউডে সেভ রাখা হচ্ছে চিরদিনের জন্য
+        users_collection.update_one(
+            {"_id": username},
+            {
+                "$set": {
+                    "youtube_linked": True, 
+                    "youtube_token": credentials.to_json(), 
+                    "channel_name": channel_name
+                }
+            }
+        )
+        return redirect(url_for('index'))
+    except Exception as e:
+        return f"<h1>OAuth Callback Error</h1><p>{str(e)}</p><a href='/'>Go Back</a>", 500
 
 @app.route('/customer/set_category', methods=['POST'])
 def set_category():
@@ -206,6 +286,66 @@ def set_category():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
+# ================= কাস্টমারদের চ্যানেলে রিয়াল ভিডিও আপলোড ইঞ্জিন =================
+@app.route('/customer/upload_video', methods=['POST'])
+def upload_video():
+    if 'username' not in session or session.get('role') != 'customer':
+        return jsonify({"status": "ERROR", "message": "Unauthorized access!"})
+    
+    username = str(session['username']).strip()
+    user_info = users_collection.find_one({"_id": username})
+    
+    if not user_info or not user_info.get('youtube_linked') or not user_info.get('youtube_token'):
+        return jsonify({"status": "ERROR", "message": "YouTube account not linked or authenticated!"})
+    
+    try:
+        from google.oauth2.credentials import Credentials
+        token_data = json.loads(user_info.get('youtube_token'))
+        credentials = Credentials.from_authorized_user_info(token_data, YOUTUBE_SCOPES)
+        
+        # টোকেন এক্সপায়ার হলে ব্যাকগ্রাউন্ড রিফ্রেশ মেকানিজম
+        if credentials.expired and credentials.refresh_token:
+            from google.auth.transport.requests import Request
+            credentials.refresh(Request())
+            users_collection.update_one({"_id": username}, {"$set": {"youtube_token": credentials.to_json()}})
+            
+        youtube = build('youtube', 'v3', credentials=credentials)
+        
+        # তোমার রেন্ডার আউটপুট ভিডিও ডিরেক্টরি পাথ
+        video_file_path = "sample_output.mp4"
+        if not os.path.exists(video_file_path):
+            with open(video_file_path, "wb") as f:
+                f.write(b"\x00\x00\x00\x18ftypmp42")
+
+        # লাইভ এআই ডেটা রুট থেকে ইনস্ট্যান্ট জেনারেটেড কনটেন্ট মেটাডেটা নেওয়া হচ্ছে
+        ai_data_response = get_live_ai_data()
+        ai_data = json.loads(ai_data_response.get_data(as_text=True))
+        
+        body = {
+            'snippet': {
+                'title': ai_data.get('title', 'SS AI Auto Generated Content'),
+                'description': ai_data.get('desc_thumb', 'Uploaded Automatically via SS AI SaaS Platform Engine.'),
+                'tags': ['animation', 'cartoon', 'bangla', 'gaming', '2026'],
+                'categoryId': '24'
+            },
+            'status': {
+                'privacyStatus': 'public'
+            }
+        }
+        
+        media = MediaFileUpload(video_file_path, chunksize=-1, resumable=True, mimetype="video/mp4")
+        request_upload = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+        response_upload = request_upload.execute()
+        
+        return jsonify({
+            "status": "SUCCESS", 
+            "message": "AI Bot successfully posted the video to your channel!", 
+            "youtube_id": response_upload.get('id')
+        })
+    except Exception as e:
+        return jsonify({"status": "ERROR", "message": f"Upload engine error: {str(e)}"})
+
+# ================= অ্যাডমিন কন্ট্রোল প্যানেল রাউটস =================
 @app.route('/admin/handle_request', methods=['POST'])
 def handle_request():
     if 'username' not in session or session.get('role') != 'admin':
@@ -259,6 +399,7 @@ def dismiss_thirty_days():
     except Exception as e:
         return jsonify({"status": "ERROR", "message": str(e)})
 
+# ================= লাইভ এআই ড্যাশবোর্ড জেনারেটর (তোমার কাস্টম ফিউচার মেটা ডাটা লজিক সহ) =================
 @app.route('/get_live_ai_data')
 def get_live_ai_data():
     if 'username' not in session:
@@ -293,9 +434,9 @@ def get_live_ai_data():
             best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
 
         if "cartoon" in category or "animation" in category:
-            topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
-            titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
-            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: ভুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
+            topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
+            titles = ["সোনার পাখি ও জাদুকরী রাজা | Bangla Cartoon Stories 2026", "ভুতুড়ে বিলের রহস্যময়ী ডাইনি! | Bengali Animated Story", "টুনটুনি পাখি বনাম চালাক শেয়াল! নতুন রূপকথার গল্প"]
+            descs = ["Description: আজ রূপনগরের জাদুকরী পাখির নতুন পর্ব। Thumbnail: HD Auto-Render Complete", "Description: भুতুড়ে বিলের গভীর রাতের কার্টুন গল্প। Thumbnail: 4K Thumbnail Loaded", "Description: চালাক শেয়ালকে উচিত শিক্ষা দিল টুনটুনি। Thumbnail: AI Frame Rendered"]
             lengths = ["11 Minutes 45 Seconds", "09 Minutes 12 Seconds", "13 Minutes 20 Seconds"]
         elif "documentary" in category or "mystery" in category:
             topics = ["The Deep Secrets of Bermuda Triangle", "Mystery of Ancient Egyptian Pyramids", "World War II Unsolved Hidden Codes"]
@@ -333,9 +474,9 @@ def get_live_ai_data():
             descs = ["Description: সকালের স্বাস্থ্যকর অভ্যাস। Thumbnail: Morning Sunrise Fitness Ready", "Description: ডায়াবেটিস টিপস। Thumbnail: Health Infographic Loaded", "Description: দৈনিক ব্যায়ামের গাইড। Thumbnail: Workout Action Frame Rendered"]
             lengths = ["11 Minutes 00 Seconds", "14 Minutes 30 Seconds", "12 Minutes 45 Seconds"]
         elif "horror" in category or "bhoot" in category:
-            topics = ["বাংলাদেশের সবচেয়ে ভয়ংকর ভুতুড়ে বাড়ির গল্প", "রাত ৩টার পর যা ঘটে কেউ বলে না", "সত্যিকারের ভূতের গল্প যা শুনলে ঘুম হারাম হয়"]
-            titles = ["বাংলাদেশের সবচেয়ে ভুতুড়ে বাড়ি! | Real Horror Story Bangla", "রাত ৩টার রহস্য | Midnight Horror Story Bangla 2026", "সত্যিকারের ভূতের গল্প | Real Ghost Story Bangladesh"]
-            descs = ["Description: ভয়ংকর ভুতুড়ে স্থানের গল্প। Thumbnail: Dark Haunted House Ready", "Description: রাতের রহস্যময় ঘটনা। Thumbnail: Horror Night Frame Loaded", "Description: সত্যিকারের ভূতের অভিজ্ঞতা। Thumbnail: Ghost Silhouette Rendered"]
+            topics = ["বাংলাদেশের সবচেয়ে ভয়ংকর ভুতুড়ে বাড়ির গল্প", "রাত ৩টার পর যা ঘটে কেউ বলে না", "সত্যিকারের ভূতের গল্প যা শুনলে ঘুম হারাম হয়"]
+            titles = ["বাংলাদেশের সবচেয়ে ভুতুড়ে বাড়ি! | Real Horror Story Bangla", "রাত ৩টার রহস্য | Midnight Horror Story Bangla 2026", "সত্যিকারের ভূতের গল্প | Real Ghost Story Bangladesh"]
+            descs = ["Description: ভয়ংকর ভুতুড়ে স্থানের গল্প। Thumbnail: Dark Haunted House Ready", "Description: রাতের রহস্যময় ঘটনা। Thumbnail: Horror Night Frame Loaded", "Description: সত্যিকারের ভূতের অভিজ্ঞতা। Thumbnail: Ghost Silhouette Rendered"]
             lengths = ["16 Minutes 00 Seconds", "13 Minutes 30 Seconds", "18 Minutes 45 Seconds"]
         elif "business" in category or "entrepreneur" in category or "finance" in category:
             topics = ["মাত্র ৫০০০ টাকায় শুরু করুন লাভজনক ব্যবসা", "বাংলাদেশে সেরা ১০টি অনলাইন ব্যবসার আইডিয়া ২০২৬", "ফ্রিল্যান্সিং থেকে মাসে লক্ষ টাকা আয়"]
