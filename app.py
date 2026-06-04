@@ -272,13 +272,34 @@ def get_live_ai_data():
         category = str(user_info.get('category', '')).lower()
         current_time = datetime.now()
         try:
-            random.seed(int(str(user_info.get('_id', '123')).strip()) + current_time.day)
-        except:
-            random.seed(current_time.day)
-        hours_to_add = random.choice([3, 4, 5])
-        minutes_to_add = random.choice([0, 15, 30, 45])
-        traffic_time = (current_time + timedelta(hours=hours_to_add)).replace(minute=minutes_to_add)
-        best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
+    random.seed(int(str(user_info.get('_id', '123')).strip()) + current_time.day)
+except:
+    random.seed(current_time.day)
+
+current_hour = current_time.hour
+
+if current_hour < 6:
+    best_hour = random.choice([7, 8, 9])
+elif current_hour < 10:
+    best_hour = random.choice([current_hour + 1, current_hour + 2])
+elif current_hour < 14:
+    best_hour = random.choice([current_hour + 1, current_hour + 2, 15])
+elif current_hour < 18:
+    best_hour = random.choice([current_hour + 1, 19, 20])
+elif current_hour < 21:
+    best_hour = random.choice([current_hour + 1, 22])
+else:
+    best_hour = random.choice([7, 8, 9])
+
+best_minute = random.choice([0, 15, 30, 45])
+
+if best_hour >= 24:
+    best_hour = best_hour - 24
+    traffic_time = (current_time + timedelta(days=1)).replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
+    best_time = f"TOMORROW AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
+else:
+    traffic_time = current_time.replace(hour=best_hour, minute=best_minute, second=0, microsecond=0)
+    best_time = f"TODAY AT {traffic_time.strftime('%I:%M %p')} (Optimized Live Channel Traffic)"
 
         if "cartoon" in category or "animation" in category:
             topics = ["সোনার পাখি ও জাদুকরী রূপনগর রাজ্যের কেল্লা", "ভুতুড়ে বিলের রহস্যময় ডাইনি বুড়ি", "টুনটুনি আর চালাক শেয়ালের বুদ্ধির খেলা"]
