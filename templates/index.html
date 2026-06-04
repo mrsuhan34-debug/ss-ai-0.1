@@ -52,6 +52,11 @@
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.6; } }
         .notification-zone { background: #1f1f2e; border: 1px solid #ffaa00; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; }
         .notification-item { display: flex; justify-content: space-between; align-items: center; background: #17171f; padding: 10px 15px; margin-top: 8px; border-radius: 6px; border-left: 4px solid #ffaa00; }
+        
+        /* সুহান ভাই, তোমার আপলোড বাটনের প্রিমিয়াম ডার্ক থিম স্টাইল এখানে সেট করে দিলাম */
+        .upload-btn { background: linear-gradient(135deg, #00ffcc 0%, #00bcff 100%); color: #0b0b0e; font-size: 15px; letter-spacing: 0.5px; padding: 14px 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,255,204,0.3); margin-top: 15px; font-weight: 800; border: none; width: 100%; cursor: pointer; transition: 0.4s; }
+        .upload-btn:hover { background: linear-gradient(135deg, #00cc99 0%, #0099cc 100%); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,255,204,0.5); }
+        .upload-btn:disabled { background: #333 !important; color: #666 !important; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
     </style>
 </head>
 <body>
@@ -259,6 +264,8 @@
                         <span class="live-pulse"></span>
                         <span style="font-size: 13px; color: #00ffcc; font-weight: bold;" id="live-status">AI BOT IS PROCESSING VIDEO...</span>
                     </div>
+                    
+                    <button class="upload-btn" id="upload-bot-btn" onclick="triggerYoutubeUpload()">🚀 PUBLISH VIDEO LIVE NOW</button>
                 </div>
             {% endif %}
             <div id="msg" style="margin-top: 15px; color: #ffcc00; font-weight: bold;"></div>
@@ -362,7 +369,13 @@
             if (btn) btn.innerText = "Connecting...";
             fetch('/customer/auth_youtube', { method: 'POST' })
             .then(res => res.json())
-            .then(data => { location.reload(); })
+            .then(data => { 
+                if(data.status === "SUCCESS" && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    location.reload(); 
+                }
+            })
             .catch(err => { location.reload(); });
         }
 
@@ -395,27 +408,67 @@
             });
         }
 
-       function fetchLiveAiTracking() {
-    if (document.getElementById('live-topic')) {
-        fetch('/get_live_ai_data')
-        .then(res => res.json())
-        .then(data => {
-            if (data && data.topic && data.topic !== "N/A") {
-                document.getElementById('live-topic').innerText = data.topic;
-                document.getElementById('live-title').innerText = data.title;
-                document.getElementById('live-desc').innerText = data.desc_thumb;
-                document.getElementById('live-length').innerText = data.length;
-                document.getElementById('live-time').innerText = data.upload_time;
-                document.getElementById('live-status').innerText = data.status;
-            } else {
-                setTimeout(fetchLiveAiTracking, 3000);
+        // সুহান ভাই, কাস্টমারদের লাইভ ওঅথ ভিডিও আপলোড ট্রিগার ফাংশন এখানে লক করে দিলাম
+        function triggerYoutubeUpload() {
+            let uploadBtn = document.getElementById('upload-bot-btn');
+            let statusText = document.getElementById('live-status');
+            
+            if (!confirm("Are you sure you want to upload this AI video onto your channel right now?")) return;
+            
+            uploadBtn.disabled = true;
+            uploadBtn.innerText = "⚡ ENGINE UPLOADING VIDEO...";
+            if (statusText) statusText.innerText = "YOUTUBE API: INITIALIZING SECURE CHUNK UPLOAD...";
+
+            fetch('/customer/upload_video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "SUCCESS") {
+                    alert("🎉 Success! Video successfully posted onto YouTube. ID: " + data.youtube_id);
+                    if (statusText) statusText.innerText = "AUTO-POST COMPLETE! VIDEO LIVE.";
+                } else {
+                    alert("❌ Upload Failed: " + data.message);
+                    if (statusText) statusText.innerText = "ERROR: UPLOAD ENG FAILED.";
+                }
+                uploadBtn.disabled = false;
+                uploadBtn.innerText = "🚀 PUBLISH VIDEO LIVE NOW";
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Server connection timeout!");
+                uploadBtn.disabled = false;
+                uploadBtn.innerText = "🚀 PUBLISH VIDEO LIVE NOW";
+            });
+        }
+
+        function fetchLiveAiTracking() {
+            if (document.getElementById('live-topic')) {
+                fetch('/get_live_ai_data')
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.topic && data.topic !== "N/A") {
+                        document.getElementById('live-topic').innerText = data.topic;
+                        document.getElementById('live-title').innerText = data.title;
+                        document.getElementById('live-desc').innerText = data.desc_thumb;
+                        document.getElementById('live-length').innerText = data.length;
+                        document.getElementById('live-time').innerText = data.upload_time;
+                        
+                        // যদি ইতিমধ্যে বাটন ক্লিক করা অবস্থায় না থাকে, তবে ব্যাকএন্ড স্ট্যাটাস আপডেট করবে
+                        let uploadBtn = document.getElementById('upload-bot-btn');
+                        if (uploadBtn && !uploadBtn.disabled) {
+                            document.getElementById('live-status').innerText = data.status;
+                        }
+                    } else {
+                        setTimeout(fetchLiveAiTracking, 3000);
+                    }
+                })
+                .catch(err => {
+                    setTimeout(fetchLiveAiTracking, 3000);
+                });
             }
-        })
-        .catch(err => {
-            setTimeout(fetchLiveAiTracking, 3000);
-        });
-    }
-}
+        }
         setInterval(fetchLiveAiTracking, 5000);
         window.onload = fetchLiveAiTracking;
     </script>
