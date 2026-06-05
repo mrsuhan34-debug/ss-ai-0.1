@@ -52,7 +52,7 @@
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 0.6; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(0.9); opacity: 0.6; } }
         .notification-zone { background: #1f1f2e; border: 1px solid #ffaa00; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; }
         .notification-item { display: flex; justify-content: space-between; align-items: center; background: #17171f; padding: 10px 15px; margin-top: 8px; border-radius: 6px; border-left: 4px solid #ffaa00; }
-        .auto-badge { background: rgba(0, 255, 204, 0.1); color: #00ffcc; font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(0, 255, 204, 0.3); display: inline-block; margin-top: 5px; font-weight: bold; }
+        .auto-badge { background: rgba(0,255,204,0.1); color: #00ffcc; font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(0,255,204,0.3); display: inline-block; margin-top: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -365,11 +365,11 @@
             if (btn) btn.innerText = "Connecting...";
             fetch('/customer/auth_youtube', { method: 'POST' })
             .then(res => res.json())
-            .then(data => { 
-                if(data.status === "SUCCESS" && data.redirect_url) {
+            .then(data => {
+                if (data.status === "SUCCESS" && data.redirect_url) {
                     window.location.href = data.redirect_url;
                 } else {
-                    location.reload(); 
+                    location.reload();
                 }
             })
             .catch(err => { location.reload(); });
@@ -404,76 +404,70 @@
             });
         }
 
-        // এআই জেনারেটেড ট্রাফিক টাইম মিলে গেলে ব্যাকএন্ডকে অটো-পাবলিশ হিট করার জাভাস্ক্রিপ্ট ইঞ্জিন
-        let lastUploadedDateStr = ""; 
+        let lastUploadedDateStr = "";
+
         function checkAndAutoPublish(targetTimeStr) {
             if (!targetTimeStr) return;
-            
             let cleanTime = targetTimeStr.replace("(Optimized Live Channel Traffic)", "").trim();
             let todayStr = new Date().toDateString();
-            
-            if (cleanTime.includes("TOMORROW")) return; 
-            
-            let timePart = cleanTime.replace("TODAY AT", "").trim(); 
+            if (cleanTime.includes("TOMORROW")) return;
+            let timePart = cleanTime.replace("TODAY AT", "").trim();
             let targetDateTime = new Date(todayStr + " " + timePart);
             let now = new Date();
-            
-            // যদি এআই জেনারেটেড টাইম পার হয়ে যায় বা বর্তমান সময়ের সাথে ম্যাচ করে, এবং আজ অলরেডি আপলোড না হয়ে থাকে
             if (now >= targetDateTime && lastUploadedDateStr !== todayStr) {
-                lastUploadedDateStr = todayStr; // ডাবল আপলোড লকিং প্রটেকশন
-                let statusText = document.getElementById('live-status');
-                if (statusText) statusText.innerText = "⚡ TARGET TIME MATCHED! AUTO-PILOT UPLOADING VIDEO NOW...";
-                
-                fetch('/customer/upload_video', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                })
+                lastUploadedDateStr = todayStr;
+                let statusEl = document.getElementById('live-status');
+                if (statusEl) statusEl.innerText = "⚡ TARGET TIME MATCHED! AUTO-PILOT UPLOADING VIDEO NOW...";
+                fetch('/customer/upload_video', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
                 .then(res => res.json())
                 .then(data => {
-                    if (data.status === "SUCCESS") {
-                        console.log("🎉 Auto-Upload Successful: " + data.youtube_id);
-                        if (statusText) statusText.innerText = "✅ AUTO-POST COMPLETE! VIDEO IS LIVE ON CHANNEL.";
-                    } else {
-                        console.log("❌ Auto-Upload Failed: " + data.message);
-                        if (statusText) statusText.innerText = "⚠️ AUTO-PILOT: UPLOAD SKIPPED OR FAILED.";
-                        lastUploadedDateStr = ""; // এরর আসলে রিস্টার্ট লকিং রিলিজ
+                    if (statusEl) {
+                        if (data.status === "SUCCESS") {
+                            statusEl.innerText = "✅ AUTO-POST COMPLETE! VIDEO IS LIVE ON CHANNEL.";
+                        } else {
+                            statusEl.innerText = "⚠️ AUTO-PILOT: UPLOAD SKIPPED OR FAILED.";
+                            lastUploadedDateStr = "";
+                        }
                     }
                 })
                 .catch(err => {
-                    console.error("Auto-upload connection error", err);
+                    if (statusEl) statusEl.innerText = "⚠️ CONNECTION ERROR. RETRYING...";
                     lastUploadedDateStr = "";
                 });
             }
         }
 
         function fetchLiveAiTracking() {
-            if (document.getElementById('live-topic')) {
-                fetch('/get_live_ai_data')
-                .then(res => res.json())
-                .then(data => {
-                    if (data && data.topic && data.topic !== "N/A" && data.topic !== "Error") {
-                        document.getElementById('live-topic').innerText = data.topic;
-                        document.getElementById('live-title').innerText = data.title;
-                        document.getElementById('live-desc').innerText = data.desc_thumb;
-                        document.getElementById('live-length').innerText = data.length;
-                        document.getElementById('live-time').innerText = data.upload_time;
-                        
-                        let currentStatus = document.getElementById('live-status').innerText;
-                        if (!currentStatus.includes("UPLOADING") && !currentStatus.includes("LIVE")) {
-                            document.getElementById('live-status').innerText = data.status;
+            let topicEl = document.getElementById('live-topic');
+            if (!topicEl) return;
+            fetch('/get_live_ai_data')
+            .then(res => res.json())
+            .then(data => {
+                let topic = data.topic || "";
+                let title = data.title || "";
+                if (topic && topic !== "N/A" && topic !== "Error" && topic !== "undefined" && title && title !== "N/A" && title !== "Error") {
+                    document.getElementById('live-topic').innerText = topic;
+                    document.getElementById('live-title').innerText = title;
+                    document.getElementById('live-desc').innerText = data.desc_thumb || "";
+                    document.getElementById('live-length').innerText = data.length || "";
+                    document.getElementById('live-time').innerText = data.upload_time || "";
+                    let statusEl = document.getElementById('live-status');
+                    if (statusEl) {
+                        let cur = statusEl.innerText;
+                        if (!cur.includes("UPLOADING") && !cur.includes("LIVE") && !cur.includes("COMPLETE")) {
+                            statusEl.innerText = data.status || "AI ENGINE WORKING...";
                         }
-                        
-                        // টাইম ট্র্যাক চেক ইঞ্জিন রান করানো
-                        checkAndAutoPublish(data.upload_time);
-                    } else {
-                        setTimeout(fetchLiveAiTracking, 3000);
                     }
-                })
-                .catch(err => {
-                    setTimeout(fetchLiveAiTracking, 3000);
-                });
-            }
+                    checkAndAutoPublish(data.upload_time);
+                } else {
+                    setTimeout(fetchLiveAiTracking, 2000);
+                }
+            })
+            .catch(err => {
+                setTimeout(fetchLiveAiTracking, 2000);
+            });
         }
+
         setInterval(fetchLiveAiTracking, 5000);
         window.onload = fetchLiveAiTracking;
     </script>
